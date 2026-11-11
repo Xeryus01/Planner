@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import seed from './seed.json';
+import { pull, push, create, merge, sig, loadCfg, saveCfg } from './sync';
 
 const KEY = 'perencana:v1';
 const COL = { teal: '#0e7c86', indigo: '#4f46e5', amber: '#c77d00', rose: '#d6336c', green: '#2f9e44' };
@@ -37,8 +38,21 @@ function cd(p) {
 }
 const fd = (d) => (d ? new Date(d + 'T00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }) : '');
 
+const LBL = { off: 'Lokal', busy: 'Menyinkronkan…', ok: 'Tersinkron', err: 'Gagal sinkron' };
+function Ring({ v, size }) {
+  const r = size / 2 - 6, c = 2 * Math.PI * r, h = size / 2;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-label={v + ' persen selesai'} style={{ flex: 'none' }}>
+      <circle cx={h} cy={h} r={r} fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="7" />
+      <circle cx={h} cy={h} r={r} fill="none" stroke="#fff" strokeWidth="7" strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c * (1 - v / 100)} transform={`rotate(-90 ${h} ${h})`} />
+      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central" fill="#fff" fontSize={size / 3.6} fontWeight="700">{v}%</text>
+    </svg>
+  );
+}
+
 export default function App() {
   const [plans, setPlans] = useState(null);
+  const [del, setDel] = useState({});
   const [cur, setCur] = useState(null);
   const [tab, setTab] = useState('c');
   const [edit, setEdit] = useState(false);
@@ -47,48 +61,93 @@ export default function App() {
   const [nt, setNt] = useState('');
   const [tp, setTp] = useState('kosong');
   const [sure, setSure] = useState(false);
+  const [cfg, setCfg] = useState({});
+  const [st, setSt] = useState('off');
+  const [panel, setPanel] = useState(false);
+  const [spw, setSpw] = useState('');
+  const [sid, setSid] = useState('');
+  const [msg, setMsg] = useState('');
   const file = useRef(null);
+  const live = useRef({});
+  const syncRef = useRef(null);
+  live.current = { plans, del, cfg };
 
   useEffect(() => {
     let d = null;
     try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
     setPlans((d && Array.isArray(d.plans) ? d.plans : seed.plans).map(norm));
+    setDel((d && d.del) || {});
+    setCfg(loadCfg());
   }, []);
-  useEffect(() => { if (plans) try { localStorage.setItem(KEY, JSON.stringify({ plans })); } catch (e) {} }, [plans]);
+  useEffect(() => { if (plans) try { localStorage.setItem(KEY, JSON.stringify({ plans, del })); } catch (e) {} }, [plans, del]);
   useEffect(() => { if (sn) { const t = setTimeout(() => setSn(null), 6000); return () => clearTimeout(t); } }, [sn]);
+
+  syncRef.current = async () => {
+    const { plans: lp, del: ld, cfg: c } = live.current;
+    if (!lp || !c.id) return;
+    setSt('busy');
+    try {
+      const rem = await pull(c);
+      const local = { plans: lp, del: ld };
+      const m = merge(local, rem || { plans: [], del: {} });
+      if (sig(m) !== sig(local)) { setPlans(m.plans); setDel(m.del); }
+      if (!rem || sig(m) !== sig(rem)) await push(c, m);
+      setSt('ok');
+    } catch (e) { setSt('err'); }
+  };
+  useEffect(() => { if (!cfg.id || !plans) return; const t = setTimeout(() => syncRef.current(), 1200); return () => clearTimeout(t); }, [plans, del, cfg]);
+  useEffect(() => {
+    const run = () => { if (!document.hidden && syncRef.current) syncRef.current(); };
+    const iv = setInterval(run, 20000);
+    document.addEventListener('visibilitychange', run); window.addEventListener('focus', run);
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', run); window.removeEventListener('focus', run); };
+  }, []);
+  useEffect(() => { if (!cfg.id) setSt('off'); }, [cfg]);
 
   if (!plans) return null;
   const p = cur && plans.find((x) => x.id === cur);
   const mut = (fn) => setPlans((prev) => { const n = clone(prev); fn(n); return n; });
-  const ed = (fn) => mut((n) => fn(n.find((x) => x.id === cur)));
+  const ed = (fn, quiet) => mut((n) => { const q = n.find((x) => x.id === cur); fn(q); if (!quiet) q.u = Date.now(); });
   const sec = (q, id) => q.sections.find((s) => s.id === id);
   const day = (q, id) => q.days.find((s) => s.id === id);
   const rm = (get, id, msg) => {
     const arr = get(p), k = arr.findIndex((x) => x.id === id), o = clone(arr[k]), pid = cur;
     ed((q) => get(q).splice(k, 1));
-    setSn({ msg, undo: () => mut((n) => get(n.find((x) => x.id === pid)).splice(k, 0, o)) });
+    setSn({ msg, undo: () => mut((n) => { const q = n.find((x) => x.id === pid); get(q).splice(k, 0, o); q.u = Date.now(); }) });
   };
   const setAdd = (k, v) => setAdds((a) => ({ ...a, [k]: v }));
   const open = (id) => { setCur(id); setTab('c'); setEdit(false); setSure(false); };
-
-  const create = () => {
+  const create_ = () => {
     const t = nt.trim(); if (!t) return;
-    const n = norm({ title: t, ord: Date.now(), sections: TPL[tp].map((x) => ({ t: x[0], w: '', o: true, items: x.slice(1) })) });
+    const n = norm({ title: t, ord: Date.now(), u: Date.now(), sections: TPL[tp].map((x) => ({ t: x[0], w: '', o: true, items: x.slice(1) })) });
     setPlans((pl) => [...pl, n]); setNt(''); setCur(n.id); setEdit(true); setTab('c');
   };
   const exportJson = () => {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify({ plans }, null, 2)], { type: 'application/json' }));
+    a.href = URL.createObjectURL(new Blob([JSON.stringify({ plans, del }, null, 2)], { type: 'application/json' }));
     a.download = 'perencana-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
   };
   const importJson = async (e) => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try {
       const d = JSON.parse(await f.text()); if (!Array.isArray(d.plans)) throw 0;
-      const inc = d.plans.map(norm);
+      const inc = d.plans.map(norm).map((x) => ({ ...x, u: Date.now() }));
       setPlans((prev) => { const m = [...prev]; inc.forEach((x) => { const k = m.findIndex((y) => y.id === x.id); if (k < 0) m.push(x); else m[k] = x; }); return m; });
       setSn({ msg: inc.length + ' rencana diimpor' });
     } catch (err) { setSn({ msg: 'File tidak valid' }); }
+  };
+  const done = (c) => { saveCfg(c); setCfg(c); setMsg(''); setSpw(''); setSid(''); };
+  const makeCode = async () => {
+    if (spw.length < 4) return setMsg('Kata sandi minimal 4 karakter');
+    setMsg('Membuat kode…');
+    try { done({ id: await create(spw), pw: spw }); }
+    catch (e) { setMsg(e.message === 'noloc' ? 'Kode tidak bisa dibuat otomatis. Buat blob kosong ({}) di jsonblob.com, lalu tempel ID-nya di kolom Kode.' : 'Gagal menghubungi layanan sinkron.'); }
+  };
+  const joinCode = async () => {
+    const c = { id: sid.trim().split('/').pop(), pw: spw };
+    if (!c.id || spw.length < 4) return setMsg('Isi kode dan kata sandi (min. 4 karakter)');
+    setMsg('Memeriksa…');
+    try { await pull(c); done(c); } catch (e) { setMsg('Kode atau kata sandi salah, atau layanan tidak bisa dijangkau.'); }
   };
 
   const r = p && prog(p);
@@ -96,70 +155,68 @@ export default function App() {
     <main>
       {!p && (
         <>
-          <h1>Perencana</h1>
-          <p style={{ color: 'var(--mu)', margin: '4px 0 0' }}>Checklist dan jadwal untuk liburan, acara, atau kegiatan apa pun.</p>
+          <header className="hd">
+            <div><h1>Perencana</h1><p className="sub">Checklist dan jadwal untuk kegiatan apa pun</p></div>
+            <button className={'pill ' + st} onClick={() => setPanel(true)}>{LBL[st]}</button>
+          </header>
           <div className="grid">
             {plans.map((x) => { const q = prog(x); return (
               <button key={x.id} className="card" style={{ '--c': COL[x.color] || COL.teal }} onClick={() => open(x.id)}>
-                <span className="em">{x.emoji}</span><h2>{x.title}</h2><small>{cd(x) || x.note}</small>
-                <div className="bar"><i style={{ width: q[2] + '%' }} /></div><small>{q[0]} dari {q[1]} selesai</small>
+                <div className="ct"><span className="em">{x.emoji}</span><Ring v={q[2]} size={58} /></div>
+                <h2>{x.title}</h2><small>{cd(x) || x.note}</small><small>{q[0]} dari {q[1]} selesai</small>
               </button>); })}
           </div>
           <div className="new">
             <b>Rencana baru</b>
-            <input type="text" value={nt} onChange={(e) => setNt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} placeholder="Judul, misalnya Pernikahan Sari" />
+            <input type="text" value={nt} onChange={(e) => setNt(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create_()} placeholder="Judul, misalnya Pernikahan Sari" />
             <select value={tp} onChange={(e) => setTp(e.target.value)}>
               <option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option>
             </select>
-            <button className="btn pri" onClick={create}>Buat rencana</button>
+            <button className="btn pri" onClick={create_}>Buat rencana</button>
           </div>
-          <div className="tools">
-            <button className="btn" onClick={exportJson}>Ekspor JSON</button>
-            <button className="btn" onClick={() => file.current.click()}>Impor JSON</button>
-            <input ref={file} type="file" accept="application/json,.json" hidden onChange={importJson} />
-          </div>
-          <p style={{ color: 'var(--mu)', fontSize: 13 }}>Data tersimpan di browser perangkat ini. Pakai Ekspor dan Impor untuk cadangan atau memindahkan ke perangkat lain.</p>
         </>
       )}
       {p && (
         <>
           <section className="hero" style={{ '--c': COL[p.color] || COL.teal }}>
-            <button className="ghost" onClick={() => { setCur(null); setEdit(false); }}>‹ Semua rencana</button>
-            <div className="em">{p.emoji}</div>
-            {edit ? (
-              <>
-                <input type="text" defaultValue={p.title} onBlur={(e) => ed((q) => { q.title = e.target.value.trim() || q.title; })} />
-                <input type="text" defaultValue={p.note} placeholder="Keterangan" onBlur={(e) => ed((q) => { q.note = e.target.value; })} />
-                <div className="row" style={{ padding: 0 }}>
-                  <input type="date" defaultValue={p.start} onBlur={(e) => ed((q) => { q.start = e.target.value; })} />
-                  <input type="date" defaultValue={p.end} onBlur={(e) => ed((q) => { q.end = e.target.value; })} />
-                </div>
-                <div className="row" style={{ padding: '4px 0' }}>
-                  <input type="text" defaultValue={p.emoji} style={{ maxWidth: 70 }} onBlur={(e) => ed((q) => { q.emoji = e.target.value || q.emoji; })} />
-                  {Object.keys(COL).map((k) => <span key={k} className="dot" style={{ background: COL[k] }} onClick={() => ed((q) => { q.color = k; })} />)}
-                </div>
-              </>
-            ) : (
-              <>
-                <h1>{p.title}</h1><p>{p.note}</p>
-                {cd(p) && <span className="chip">{cd(p)}</span>}
-              </>
-            )}
-            <div className="bar"><i style={{ width: r[2] + '%' }} /></div>
-            <div className="st"><span>{r[2]}%</span><span>{r[0]} dari {r[1]} selesai</span></div>
+            <div className="hr">
+              <button className="ghost" onClick={() => { setCur(null); setEdit(false); }}>‹ Semua rencana</button>
+              <button className={'pill ' + st} onClick={() => setPanel(true)}>{LBL[st]}</button>
+            </div>
+            <div className="hm">
+              <div>
+                <div className="em">{p.emoji}</div>
+                {edit ? (
+                  <>
+                    <input type="text" defaultValue={p.title} onBlur={(e) => ed((q) => { q.title = e.target.value.trim() || q.title; })} />
+                    <input type="text" defaultValue={p.note} placeholder="Keterangan" onBlur={(e) => ed((q) => { q.note = e.target.value; })} />
+                    <div className="row" style={{ padding: 0 }}>
+                      <input type="date" defaultValue={p.start} onBlur={(e) => ed((q) => { q.start = e.target.value; })} />
+                      <input type="date" defaultValue={p.end} onBlur={(e) => ed((q) => { q.end = e.target.value; })} />
+                    </div>
+                    <div className="row" style={{ padding: '4px 0', flexWrap: 'wrap' }}>
+                      <input type="text" defaultValue={p.emoji} style={{ maxWidth: 70, width: 70 }} onBlur={(e) => ed((q) => { q.emoji = e.target.value || q.emoji; })} />
+                      {Object.keys(COL).map((k) => <span key={k} className="dot" style={{ background: COL[k] }} onClick={() => ed((q) => { q.color = k; })} />)}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h1>{p.title}</h1><p>{p.note}</p>
+                    {cd(p) && <span className="chip">{cd(p)}</span>}
+                  </>
+                )}
+              </div>
+              <Ring v={r[2]} size={88} />
+            </div>
+            <div className="st">{r[0]} dari {r[1]} selesai</div>
           </section>
-          <div className="tabs">
-            <button className={'btn ' + (tab === 'c' ? 'on' : '')} onClick={() => setTab('c')}>Checklist</button>
-            <button className={'btn ' + (tab === 'j' ? 'on' : '')} onClick={() => setTab('j')}>Jadwal</button>
-            <button className={'btn ' + (edit ? 'pri' : '')} onClick={() => setEdit(!edit)}>{edit ? 'Selesai' : 'Ubah'}</button>
-          </div>
 
           {tab === 'c' && (
             <>
               {p.sections.map((s) => {
                 const c = s.items.filter((i) => i.d).length;
                 return (
-                  <details key={s.id} open={!!s.o} onToggle={(e) => { if (e.target.open !== !!s.o) ed((q) => { sec(q, s.id).o = e.target.open; }); }}>
+                  <details key={s.id} open={!!s.o} onToggle={(e) => { if (e.target.open !== !!s.o) ed((q) => { sec(q, s.id).o = e.target.open; }, true); }}>
                     <summary>
                       <span><b>{s.t}</b><small>{s.w}</small></span>
                       <span className={'cnt' + (s.items.length && c === s.items.length ? ' ok' : '')}>{c}/{s.items.length}</span>
@@ -264,15 +321,56 @@ export default function App() {
           {edit && (
             <button className="btn dng" style={{ marginTop: 18, width: '100%' }} onClick={() => {
               if (!sure) { setSure(true); return; }
-              mut((n) => { n.splice(n.findIndex((x) => x.id === cur), 1); }); setCur(null); setEdit(false); setSure(false);
+              mut((n) => { n.splice(n.findIndex((x) => x.id === cur), 1); }); setDel((dl) => ({ ...dl, [cur]: Date.now() })); setCur(null); setEdit(false); setSure(false);
             }}>{sure ? 'Ketuk lagi untuk menghapus permanen' : 'Hapus rencana ini'}</button>
           )}
         </>
+      )}
+      {p && (
+        <nav className="nav" aria-label="Menu rencana"><div>
+          <button className={'btn ' + (tab === 'c' ? 'on' : '')} onClick={() => setTab('c')}><span>✅</span>Checklist</button>
+          <button className={'btn ' + (tab === 'j' ? 'on' : '')} onClick={() => setTab('j')}><span>🗓️</span>Jadwal</button>
+          <button className={'btn ' + (edit ? 'pri' : '')} onClick={() => setEdit(!edit)}><span>{edit ? '✔️' : '✏️'}</span>{edit ? 'Selesai' : 'Ubah'}</button>
+        </div></nav>
       )}
       {sn && (
         <div className="sn" role="status" style={{ display: 'flex' }}>
           <span>{sn.msg}</span>
           {sn.undo && <button onClick={() => { sn.undo(); setSn(null); }}>Urungkan</button>}
+        </div>
+      )}
+      {panel && (
+        <div className="sheet" onClick={() => { setPanel(false); setMsg(''); }}>
+          <div className="box" onClick={(e) => e.stopPropagation()}>
+            <h2>Sinkronisasi</h2>
+            {cfg.id ? (
+              <>
+                <p>Perangkat ini terhubung. Di perangkat lain, buka aplikasi ini, ketuk status sinkron, lalu masukkan kode dan kata sandi yang sama.</p>
+                <div className="code">{cfg.id}</div>
+                <div className="tools">
+                  <button className="btn" onClick={() => { navigator.clipboard && navigator.clipboard.writeText(cfg.id); setMsg('Kode disalin'); }}>Salin kode</button>
+                  <button className="btn" onClick={() => syncRef.current()}>Sinkron sekarang</button>
+                  <button className="btn dng" onClick={() => { saveCfg(null); setCfg({}); }}>Putuskan</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p>Data dienkripsi di perangkat Anda dengan kata sandi, lalu disimpan sebagai JSON di layanan JSONBlob. Tanpa kata sandi, isinya tidak terbaca.</p>
+                <input type="password" value={spw} onChange={(e) => setSpw(e.target.value)} placeholder="Kata sandi sinkron" autoComplete="new-password" />
+                <button className="btn pri" onClick={makeCode}>Buat kode baru</button>
+                <p style={{ textAlign: 'center' }}>atau gabung ke kode yang sudah ada</p>
+                <input type="text" value={sid} onChange={(e) => setSid(e.target.value)} placeholder="Kode sinkron" autoCapitalize="off" />
+                <button className="btn" onClick={joinCode}>Hubungkan</button>
+              </>
+            )}
+            {msg && <div className="m">{msg}</div>}
+            <div className="tools">
+              <button className="btn" onClick={exportJson}>Ekspor JSON</button>
+              <button className="btn" onClick={() => file.current.click()}>Impor JSON</button>
+              <input ref={file} type="file" accept="application/json,.json" hidden onChange={importJson} />
+            </div>
+            <button className="btn" onClick={() => { setPanel(false); setMsg(''); }}>Tutup</button>
+          </div>
         </div>
       )}
     </main>
