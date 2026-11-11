@@ -1,0 +1,21 @@
+{"plans":[{"id":"malaysia","title":"Liburan Malaysia","emoji":"🧳","color":"teal","start":"2026-11-28","end":"2026-12-06","note":"Pangkal Pinang → Palembang → Kuala Lumpur (Tun Razak) → pulang 6 Des",
+"sections":[
+{"t":"Urus sekarang","w":"s/d 20 Nov","o":true,"items":["Periksa ke dokter kandungan: layak bepergian, repellent aman, vaksin","Minta surat keterangan dokter (usia kehamilan dan HPL) sebagai cadangan","Konfirmasi aturan ibu hamil ke keempat maskapai|Aturan tiap maskapai berbeda","Beli asuransi perjalanan yang menanggung kehamilan|Cek batas usia kehamilan dan pengecualian","Cek paspor: berlaku min. 6 bulan, ada halaman kosong","Urus cuti dan izin perjalanan luar negeri sesuai aturan kantor (jika berlaku)","Tanya saudara: alamat lengkap Tun Razak, nomor telepon, rencana jemput","Catat rumah sakit terdekat dari rumah saudara dan kontak KBRI Kuala Lumpur","Simpan e-ticket 4 penerbangan (cetak dan digital)","Cek batas bagasi dan larangan bawaan Malaysia (vape, obat terlarang)"]},
+{"t":"Rumah dan pekerjaan","w":"s/d 27 Nov","items":["Serah terima pekerjaan dan atur balasan otomatis email","Titip kunci atau kabari tetangga","Matikan listrik, gas, keran; habiskan makanan cepat basi","Bayar tagihan yang jatuh tempo selama liburan"]},
+{"t":"Belanja","w":"s/d 22 Nov","items":["Sarung koper","Sepatu jalan empuk dan tidak licin|Coba dulu beberapa hari","Sandal atau sepatu datar longgar untuk istri","Kaus kaki kompresi untuk istri","Adaptor colokan tipe G (230V)","Power bank (maks. 100 Wh, di tas kabin)","Payung lipat atau jas hujan tipis","Botol minum dan kantong ziplock untuk dokumen","Repellent aman untuk ibu hamil (sesuai saran dokter)","Oleh-oleh untuk tuan rumah|Cek aturan makanan yang boleh dibawa"]},
+{"t":"Baju dan perlengkapan","w":"s/d 25 Nov","items":["Baju katun atau linen ringan, 5–6 setel per orang","Pakaian longgar dan fleksibel untuk istri","1–2 pakaian rapi dan pakaian sopan untuk masjid","Jaket tipis atau cardigan","Pakaian dalam, kaus kaki, toiletries, tisu basah, hand sanitizer"]},
+{"t":"Obat dan kesehatan","w":"s/d 25 Nov","items":["Vitamin dan obat dari dokter dalam kemasan asli","Buku KIA dan hasil USG terakhir","Foto golongan darah dan kontak dokter di ponsel","Obat ringan (konsultasikan jenisnya ke dokter)"]},
+{"t":"Uang dan digital","w":"s/d 26 Nov","items":["Tukar sebagian uang ke ringgit","Aktifkan transaksi luar negeri di aplikasi bank","Siapkan eSIM atau SIM Malaysia","Instal Grab dan Touch ’n Go eWallet; unduh peta offline","Simpan salinan digital paspor, tiket, dan polis"]},
+{"t":"H-3 sampai H-1","w":"26–28 Nov","items":["Isi MDAC lewat situs resmi imigrasi Malaysia|Gratis, maks. 3 hari sebelum tiba. Hindari situs lain yang menarik biaya.","Simpan bukti MDAC (Anda dan istri)","Web check-in, timbang koper","Charge semua perangkat dan power bank","Tas kabin: dokumen, obat, camilan, baju ganti, cairan maks. 100 ml"]}
+],
+"days":[
+{"date":"2026-11-28","t":"Pangkal Pinang → Palembang","stops":["Tiba di bandara tepat waktu","Menginap di Palembang, tidur lebih awal"]},
+{"date":"2026-11-29","t":"Palembang → Kuala Lumpur","stops":["Tiba di bandara 3 jam sebelum terbang","Siapkan paspor, tiket pulang, bukti MDAC, alamat menginap","Mendarat, kabari saudara, makan malam bersama"]},
+{"date":"2026-11-30","t":"KLCC","stops":["Taman KLCC dan Suria KLCC","Foto Menara Petronas"]},
+{"date":"2026-12-01","t":"Pavilion dan Bukit Bintang","stops":["Jalan santai di mal","Makan malam di tempat bersih, masakan matang"]},
+{"date":"2026-12-02","t":"Masjid dan museum","stops":["09:00|Taman Botani Perdana","Masjid Negara","Museum Seni Islam"]},
+{"date":"2026-12-03","t":"Putrajaya","stops":["Masjid Putra dan Masjid Besi","Tepi danau, naik Grab"]},
+{"date":"2026-12-04","t":"Santai dan oleh-oleh","stops":["Mal dan oleh-oleh","Packing, timbang koper"]},
+{"date":"2026-12-05","t":"Kuala Lumpur → Palembang","stops":["Tiba di bandara 3 jam sebelum terbang","Menginap di Palembang"]},
+{"date":"2026-12-06","t":"Palembang → Pangkal Pinang","stops":["Terbang pulang","Jadwalkan kontrol ke dokter kandungan"]}
+]}]}
