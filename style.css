@@ -50,3 +50,4 @@ input[type=text],input[type=date],input[type=time],input[type=password],select{f
 .m{color:var(--wr);font-size:14px}.tools{display:flex;gap:8px;flex-wrap:wrap}.tools .btn{flex:1}
 :focus-visible{outline:2px solid var(--ac);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.sn{display:none}code{font-family:ui-monospace,monospace}.hero input[type=text]::placeholder{color:#ffffffaa}
