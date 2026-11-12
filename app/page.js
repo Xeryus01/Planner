@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import seed from './seed.json';
-import { pull, push, create, merge, sig, loadCfg, saveCfg } from './sync';
+import { pull, push, connect, merge, sig, loadCfg, saveCfg, packLink, unpackLink } from './sync';
 
 const KEY = 'perencana:v1';
 const COL = { teal: '#0e7c86', indigo: '#4f46e5', amber: '#c77d00', rose: '#d6336c', green: '#2f9e44' };
@@ -65,8 +65,11 @@ export default function App() {
   const [st, setSt] = useState('off');
   const [panel, setPanel] = useState(false);
   const [spw, setSpw] = useState('');
-  const [sid, setSid] = useState('');
+  const [tok, setTok] = useState('');
+  const [serr, setSerr] = useState('');
   const [msg, setMsg] = useState('');
+  const [boot, setBoot] = useState(true);
+  const first = useRef(false);
   const file = useRef(null);
   const live = useRef({});
   const syncRef = useRef(null);
@@ -77,8 +80,24 @@ export default function App() {
     try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
     setPlans((d && Array.isArray(d.plans) ? d.plans : seed.plans).map(norm));
     setDel((d && d.del) || {});
-    setCfg(loadCfg());
+    (async () => {
+      let c = loadCfg();
+      const m = location.hash.match(/#s=([\w-]+)/);
+      if (m) {
+        const o = unpackLink(m[1]);
+        history.replaceState(null, '', location.pathname + location.search);
+        if (o) { try { c = o.k === 'bin' ? { kind: 'bin', pw: o.p, id: o.i } : { token: o.t, pw: o.p }; if (!c.id) c.id = await connect(c); saveCfg(c); } catch (e) { c = loadCfg(); } }
+      }
+      setCfg(c);
+      if (!c.id) setBoot(false);
+    })();
   }, []);
+  useEffect(() => {
+    if (!boot || !cfg.id || !plans || first.current) return;
+    first.current = true;
+    const t = setTimeout(() => setBoot(false), 8000);
+    syncRef.current().finally(() => { clearTimeout(t); setBoot(false); });
+  }, [boot, cfg, plans]);
   useEffect(() => { if (plans) try { localStorage.setItem(KEY, JSON.stringify({ plans, del })); } catch (e) {} }, [plans, del]);
   useEffect(() => { if (sn) { const t = setTimeout(() => setSn(null), 6000); return () => clearTimeout(t); } }, [sn]);
 
@@ -93,7 +112,7 @@ export default function App() {
       if (sig(m) !== sig(local)) { setPlans(m.plans); setDel(m.del); }
       if (!rem || sig(m) !== sig(rem)) await push(c, m);
       setSt('ok');
-    } catch (e) { setSt('err'); }
+    } catch (e) { setSt('err'); setSerr(e.message || String(e)); }
   };
   useEffect(() => { if (!cfg.id || !plans) return; const t = setTimeout(() => syncRef.current(), 1200); return () => clearTimeout(t); }, [plans, del, cfg]);
   useEffect(() => {
@@ -104,7 +123,7 @@ export default function App() {
   }, []);
   useEffect(() => { if (!cfg.id) setSt('off'); }, [cfg]);
 
-  if (!plans) return null;
+  if (!plans || boot) return <main><p className="sub" style={{ marginTop: '40vh', textAlign: 'center' }}>Menyinkronkan…</p></main>;
   const p = cur && plans.find((x) => x.id === cur);
   const mut = (fn) => setPlans((prev) => { const n = clone(prev); fn(n); return n; });
   const ed = (fn, quiet) => mut((n) => { const q = n.find((x) => x.id === cur); fn(q); if (!quiet) q.u = Date.now(); });
@@ -136,18 +155,19 @@ export default function App() {
       setSn({ msg: inc.length + ' rencana diimpor' });
     } catch (err) { setSn({ msg: 'File tidak valid' }); }
   };
-  const done = (c) => { saveCfg(c); setCfg(c); setMsg(''); setSpw(''); setSid(''); };
-  const makeCode = async () => {
+  const done = (c) => { saveCfg(c); setCfg(c); setMsg(''); setSpw(''); setTok(''); };
+  const makeBin = async () => {
     if (spw.length < 4) return setMsg('Kata sandi minimal 4 karakter');
-    setMsg('Membuat kode…');
-    try { done({ id: await create(spw), pw: spw }); }
-    catch (e) { setMsg(e.message === 'noloc' ? 'Kode tidak bisa dibuat otomatis. Buat blob kosong ({}) di jsonblob.com, lalu tempel ID-nya di kolom Kode.' : 'Gagal menghubungi layanan sinkron.'); }
+    setMsg('Membuat penyimpanan…');
+    try { const c = { kind: 'bin', pw: spw }; c.id = await connect(c); done(c); }
+    catch (e) { setMsg('Gagal membuat penyimpanan tanpa akun (' + (e.message || e) + '). Coba lagi, atau pakai opsi GitHub di bawah.'); }
   };
-  const joinCode = async () => {
-    const c = { id: sid.trim().split('/').pop(), pw: spw };
-    if (!c.id || spw.length < 4) return setMsg('Isi kode dan kata sandi (min. 4 karakter)');
-    setMsg('Memeriksa…');
-    try { await pull(c); done(c); } catch (e) { setMsg('Kode atau kata sandi salah, atau layanan tidak bisa dijangkau.'); }
+  const link = async () => {
+    const c = { token: tok.trim(), pw: spw };
+    if (!c.token || spw.length < 4) return setMsg('Isi token GitHub dan kata sandi (min. 4 karakter)');
+    setMsg('Menghubungkan…');
+    try { c.id = await connect(c); await pull(c); done(c); }
+    catch (e) { setMsg(e.message === 'http 401' ? 'Token GitHub tidak valid atau tidak punya izin gist.' : e.name === 'OperationError' ? 'Kata sandi tidak cocok dengan data yang sudah tersimpan.' : 'Gagal: ' + (e.message || e)); }
   };
 
   const r = p && prog(p);
@@ -345,22 +365,25 @@ export default function App() {
             <h2>Sinkronisasi</h2>
             {cfg.id ? (
               <>
-                <p>Perangkat ini terhubung. Di perangkat lain, buka aplikasi ini, ketuk status sinkron, lalu masukkan kode dan kata sandi yang sama.</p>
-                <div className="code">{cfg.id}</div>
+                <p>Terhubung ({cfg.kind === 'bin' ? 'tanpa akun' : 'GitHub Gist'}). Data disinkronkan otomatis setiap aplikasi dibuka. Untuk perangkat lain, bagikan tautan sinkron dan buka sekali di sana; setelah itu perangkat itu langsung tersinkron tiap dibuka. Tautan memuat kunci akses dan kata sandi, jadi kirim hanya ke diri sendiri atau pasangan.</p>
+                {st === 'err' && serr && <div className="m">Gagal sinkron terakhir: {serr}. Http 401: token kedaluwarsa atau dicabut. Http 404 pada mode tanpa akun: layanan menghapus data karena lama tidak dipakai; putuskan lalu aktifkan lagi, data di perangkat tetap utuh.</div>}
                 <div className="tools">
-                  <button className="btn" onClick={() => { navigator.clipboard && navigator.clipboard.writeText(cfg.id); setMsg('Kode disalin'); }}>Salin kode</button>
+                  <button className="btn pri" onClick={() => { const url = location.origin + location.pathname + '#s=' + packLink(cfg); if (navigator.share) navigator.share({ title: 'Perencana', url }).catch(() => {}); else { navigator.clipboard && navigator.clipboard.writeText(url); setMsg('Tautan sinkron disalin'); } }}>Bagikan tautan sinkron</button>
                   <button className="btn" onClick={() => syncRef.current()}>Sinkron sekarang</button>
                   <button className="btn dng" onClick={() => { saveCfg(null); setCfg({}); }}>Putuskan</button>
                 </div>
               </>
             ) : (
               <>
-                <p>Data dienkripsi di perangkat Anda dengan kata sandi, lalu disimpan sebagai JSON di layanan JSONBlob. Tanpa kata sandi, isinya tidak terbaca.</p>
-                <input type="password" value={spw} onChange={(e) => setSpw(e.target.value)} placeholder="Kata sandi sinkron" autoComplete="new-password" />
-                <button className="btn pri" onClick={makeCode}>Buat kode baru</button>
-                <p style={{ textAlign: 'center' }}>atau gabung ke kode yang sudah ada</p>
-                <input type="text" value={sid} onChange={(e) => setSid(e.target.value)} placeholder="Kode sinkron" autoCapitalize="off" />
-                <button className="btn" onClick={joinCode}>Hubungkan</button>
+                <p>Data dienkripsi di perangkat dengan kata sandi lalu disimpan sebagai JSON di layanan penyimpanan publik tanpa akun. Cukup isi kata sandi.</p>
+                <input type="password" value={spw} onChange={(e) => setSpw(e.target.value)} placeholder="Kata sandi enkripsi" autoComplete="new-password" />
+                <button className="btn pri" onClick={makeBin}>Aktifkan sinkron (tanpa akun)</button>
+                <p style={{ textAlign: 'center' }}>atau, opsi lain: simpan di Gist rahasia akun GitHub Anda</p>
+                <a className="btn" href="https://github.com/settings/tokens/new?scopes=gist&description=Perencana" target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>1. Buat token GitHub (izin gist)</a>
+                <p>Di halaman GitHub, pilih masa berlaku No expiration, lalu salin token.</p>
+                <input type="password" value={tok} onChange={(e) => setTok(e.target.value)} placeholder="2. Tempel token GitHub" autoCapitalize="off" autoComplete="off" />
+                <input type="password" value={spw} onChange={(e) => setSpw(e.target.value)} placeholder="3. Kata sandi enkripsi (sama dengan di atas)" autoComplete="new-password" />
+                <button className="btn" onClick={link}>Hubungkan GitHub</button>
               </>
             )}
             {msg && <div className="m">{msg}</div>}
