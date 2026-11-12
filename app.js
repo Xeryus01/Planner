@@ -103,7 +103,9 @@ async function sync() {
   } catch (e) {
     st = 'err';
     var errorMessage = e.message || String(e);
-    serr = errorMessage.indexOf('http 401') === 0 ? 'Kata sandi sinkronisasi salah atau belum diatur pada perangkat ini.' : errorMessage;
+    if (errorMessage.indexOf('http 401') === 0) serr = 'Kata sandi sinkronisasi salah atau belum diatur pada perangkat ini.';
+    else if (errorMessage.indexOf('GITHUB_TOKEN is not configured') !== -1) serr = 'GITHUB_TOKEN belum tersedia pada deployment Vercel. Atur untuk Production lalu redeploy.';
+    else serr = errorMessage;
   }
   pill();
 }
@@ -180,7 +182,7 @@ function upd() {
 function snack(m, f) { undo = f || null; $('#snt').textContent = m; $('#sn button').style.display = f ? '' : 'none'; $('#sn').style.display = 'flex'; clearTimeout(snT); snT = setTimeout(function () { $('#sn').style.display = 'none'; undo = null; }, 6000); }
 function sheet() {
   var el = $('#sheet'); if (!panel) { el.innerHTML = ''; return; }
-  var h = '<div class="sheet" data-a="close"><div class="box"><h2>Sinkronisasi</h2><p>Status: <b>' + LBL[st] + '</b>' + (st === 'err' ? ' · ' + esc(serr) : '') + '</p><p>Data bersama dibaca dari <code>data.json</code> di GitHub. Perubahan disimpan ke repo, lalu bisa dibaca semua perangkat.</p><p>Masukkan kata sandi yang sama dengan nilai <code>SYNC_PASSWORD</code> di pengaturan Vercel:</p><div class="row"><input type="password" id="syncpw" autocomplete="current-password" placeholder="' + (syncPassword ? 'Kata sandi tersimpan di perangkat ini' : 'Kata sandi sinkronisasi') + '"><button class="btn pri" data-a="savepw">Simpan &amp; sinkron</button></div><p>Kata sandi hanya disimpan di perangkat ini, bukan di <code>config.js</code>.</p><div class="tools"><button class="btn" data-a="sync">Sinkron sekarang</button></div>';
+  var h = '<div class="sheet" data-a="close"><div class="box"><h2>Sinkronisasi</h2><p>Status: <b>' + LBL[st] + '</b>' + (st === 'err' ? ' · ' + esc(serr) : '') + '</p><p>Data bersama dibaca dari <code>data.json</code> di GitHub. Perubahan disimpan ke repo, lalu bisa dibaca semua perangkat.</p><p>Masukkan kata sandi yang sama dengan nilai <code>SYNC_PASSWORD</code> di pengaturan Vercel:</p><form id="sync-form" autocomplete="on"><div class="row"><input type="password" name="syncpw" autocomplete="current-password" placeholder="' + (syncPassword ? 'Kata sandi tersimpan di perangkat ini' : 'Kata sandi sinkronisasi') + '"><button class="btn pri" type="submit">Simpan &amp; sinkron</button></div></form><p>Kata sandi hanya disimpan di perangkat ini, bukan di <code>config.js</code>.</p><div class="tools"><button class="btn" data-a="sync">Sinkron sekarang</button></div>';
   if (msg) h += '<div class="m">' + esc(msg) + '</div>';
   h += '<div class="tools"><button class="btn" data-a="exp">Ekspor JSON</button><button class="btn" data-a="imp">Impor JSON</button></div><button class="btn" data-a="close">Tutup</button></div></div>';
   el.innerHTML = h;
@@ -191,6 +193,13 @@ function rm(arr, id, m, p) {
   var k = arr.findIndex(function (x) { return x.id === id; }), o = arr.splice(k, 1)[0];
   touch(p); snack(m, function () { arr.splice(k, 0, o); touch(p); render(); }); render();
 }
+document.addEventListener('submit', function (e) {
+  if (e.target.id !== 'sync-form') return;
+  e.preventDefault();
+  var pw = e.target.querySelector('[name="syncpw"]').value;
+  if (!pw.trim()) { msg = 'Masukkan kata sandi sinkronisasi.'; return sheet(); }
+  syncPassword = pw; localStorage.setItem(PW, syncPassword); msg = 'Kata sandi tersimpan di perangkat ini.'; sheet(); sync();
+});
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-a]'); if (!b) return;
   var a = b.dataset.a, d = b.dataset, p = cur && P();
@@ -198,12 +207,6 @@ document.addEventListener('click', function (e) {
   if (a === 'panel') { panel = true; return sheet(); }
   if (a === 'undo') { if (undo) { undo(); undo = null; $('#sn').style.display = 'none'; } return; }
   if (a === 'sync') { return sync(); }
-  if (a === 'savepw') {
-    var pw = $('#syncpw').value;
-    if (!pw.trim()) { msg = 'Masukkan kata sandi sinkronisasi.'; return sheet(); }
-    syncPassword = pw; localStorage.setItem(PW, syncPassword); msg = 'Kata sandi tersimpan di perangkat ini.'; sheet(); sync();
-    return;
-  }
   if (a === 'exp') { var l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' })); l.download = 'perencana-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); return; }
   if (a === 'imp') { return $('#file').click(); }
   if (a === 'open') { cur = d.p; tab = 'c'; edit = false; sure = false; }
