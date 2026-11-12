@@ -60,7 +60,11 @@ async function open(b) {
 }
 async function req(url, o) {
   var r = await fetch(url, Object.assign({ cache: 'no-store', headers: { 'Content-Type': 'application/json' } }, o));
-  if (!r.ok) throw new Error('http ' + r.status);
+  if (!r.ok) {
+    var detail = '';
+    try { var body = await r.json(); detail = body.message || ''; } catch (e) {}
+    throw new Error('http ' + r.status + (detail ? ': ' + detail : ''));
+  }
   return r.json();
 }
 function merge(a, b) {
@@ -81,7 +85,11 @@ async function sync() {
   try {
     var rem = null;
     try { rem = await open(await req(C.API + '/' + BIN)); }
-    catch (e) { if (e.name === 'OperationError') throw new Error('SECRET di config.js tidak cocok dengan yang dipakai saat data dibuat'); throw e; }
+    catch (e) {
+      if (e.name === 'OperationError') throw new Error('SECRET di config.js tidak cocok dengan yang dipakai saat data dibuat');
+      if (e.message.indexOf('http 401') === 0) throw new Error('HTTP 401: bin tidak dapat diakses. Pastikan ID benar dan bin dibuat tanpa Security key.');
+      throw e;
+    }
     var m = merge(S, rem || { plans: [], del: {} });
     if (sig(m) !== sig(S)) { S = m; saveLocal(); var a = document.activeElement; if (!(a && /INPUT|SELECT/.test(a.tagName))) render(); }
     if (!rem || sig(m) !== sig(rem)) await req(C.API + '/' + BIN, { method: 'PUT', body: JSON.stringify(await seal(m)) });
@@ -164,8 +172,10 @@ function sheet() {
   var el = $('#sheet'); if (!panel) { el.innerHTML = ''; return; }
   var h = '<div class="sheet" data-a="close"><div class="box"><h2>Sinkronisasi</h2><p>Status: <b>' + LBL[st] + '</b>' + (st === 'err' ? ' · ' + esc(serr) : '') + '</p>';
   if (BIN) {
-    h += '<p>Semua perangkat memakai satu data JSON bersama. Agar perangkat lain otomatis memakainya tanpa langkah apa pun, isi BIN_ID di <code>config.js</code> lalu deploy ulang:</p><div class="code">window.CONFIG = { BIN_ID: "' + esc(BIN) + '", SECRET: "' + esc(C.SECRET) + '" };</div><div class="tools"><button class="btn" data-a="copy">Salin baris ini</button><button class="btn" data-a="sync">Sinkron sekarang</button></div><p>Sebelum deploy ulang, perangkat lain bisa langsung memakai tautan ini (dibuka sekali):</p><div class="code">' + esc(location.origin + location.pathname + '#bin=' + BIN) + '</div>';
-  } else h += '<p>Penyimpanan bersama belum dibuat. Buat sekali, lalu salin ID-nya ke <code>config.js</code>.</p><button class="btn pri" data-a="mk">Buat penyimpanan bersama</button>';
+    h += '<p>Semua perangkat memakai satu data JSON bersama. Agar perangkat lain otomatis memakainya tanpa langkah apa pun, isi BIN_ID di <code>config.js</code> lalu deploy ulang:</p><div class="code">window.CONFIG = { BIN_ID: "' + esc(BIN) + '", SECRET: "' + esc(C.SECRET) + '" };</div><div class="tools"><button class="btn" data-a="copy">Salin baris ini</button><button class="btn" data-a="sync">Sinkron sekarang</button></div><p>Sebelum deploy ulang, perangkat lain bisa langsung memakai tautan ini (dibuka sekali):</p><div class="code">' + esc(location.origin + location.pathname + '#bin=' + BIN) + '</div><p>Untuk mengganti bin, tempel ID atau URL bin baru:</p><div class="row"><input type="text" id="binid" placeholder="ID atau URL bin"><button class="btn pri" data-a="connect">Hubungkan</button></div>';
+  } else {
+    h += '<p>Pembuatan bin lewat API sekarang memerlukan API key akun. Agar tidak membocorkan API key di situs publik, buat bin tanpa Security key melalui halaman resmi:</p><p><a class="btn" href="https://extendsclass.com/json-storage.html" target="_blank" rel="noopener noreferrer">Buka JSON storage</a></p><p>Setelah bin dibuat, tempel ID atau URL bin di sini untuk menghubungkannya:</p><div class="row"><input type="text" id="binid" placeholder="ID atau URL bin"><button class="btn pri" data-a="connect">Hubungkan</button></div>';
+  }
   if (msg) h += '<div class="m">' + esc(msg) + '</div>';
   h += '<div class="tools"><button class="btn" data-a="exp">Ekspor JSON</button><button class="btn" data-a="imp">Impor JSON</button></div><button class="btn" data-a="close">Tutup</button></div></div>';
   el.innerHTML = h;
@@ -186,11 +196,10 @@ document.addEventListener('click', function (e) {
   if (a === 'copy') { var t = 'window.CONFIG = { BIN_ID: "' + BIN + '", SECRET: "' + C.SECRET + '" };'; if (navigator.clipboard) navigator.clipboard.writeText(t); msg = 'Disalin'; return sheet(); }
   if (a === 'exp') { var l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' })); l.download = 'perencana-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); return; }
   if (a === 'imp') { return $('#file').click(); }
-  if (a === 'mk') {
-    msg = 'Membuat penyimpanan…'; sheet();
-    seal(S).then(function (box) { return req(C.API, { method: 'POST', body: JSON.stringify(box) }); }).then(function (r) {
-      if (!r || !r.id) throw new Error('ID tidak diterima'); BIN = r.id; localStorage.setItem(LB, BIN); msg = 'Penyimpanan dibuat. Salin baris config.js di atas.'; sheet(); sync();
-    }).catch(function (er) { msg = 'Gagal membuat penyimpanan: ' + (er.message || er); sheet(); });
+  if (a === 'connect') {
+    var rawBin = $('#binid').value.trim(), match = rawBin.match(/\/bin\/([\w-]+)\/?$/), id = match ? match[1] : rawBin;
+    if (!/^[\w-]+$/.test(id)) { msg = 'Masukkan ID bin atau URL lengkap dari JSON storage.'; return sheet(); }
+    BIN = id; localStorage.setItem(LB, BIN); msg = 'Bin dihubungkan. Memeriksa akses…'; sheet(); sync();
     return;
   }
   if (a === 'open') { cur = d.p; tab = 'c'; edit = false; sure = false; }
