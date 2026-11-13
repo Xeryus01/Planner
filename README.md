@@ -22,3 +22,10 @@ Setiap perubahan tersimpan sebagai commit pada `data.json`. Aplikasi membaca ula
 - `config.js` berisi `SECRET` untuk mengenkripsi data sebelum dikirim ke API. Jangan mengubahnya setelah data tersimpan, karena data lama tidak akan bisa dibuka.
 - Endpoint baca data dapat diakses publik. Endpoint tulis memerlukan `SYNC_PASSWORD`; siapa pun yang memilikinya dapat mengubah file dan membuat commit ke repository. Jangan bagikan kata sandi itu secara publik.
 - Karena `config.js` dikirim ke browser, `SECRET` bukan tempat menyimpan token atau kata sandi rahasia. Ekspor JSON tetap disarankan sebagai cadangan.
+
+## Pembaruan UI/UX
+
+- Kartu rencana menampilkan langkah berikutnya; jadwal memakai garis waktu dengan penanda hari ini.
+- Tambah item langsung dari mode baca; tombol Sembunyikan yang selesai; tombol Enter menambah item.
+- Hapus rencana memakai Urungkan (tanpa konfirmasi ganda). Dialog sinkronisasi dapat dipakai dengan keyboard (Esc, fokus terkunci dan dikembalikan).
+- Perbaikan: perangkat baru tanpa cache tidak lagi menampilkan layar kosong karena data.json terenkripsi; status sinkron tidak lagi menghapus kata sandi yang sedang diketik.

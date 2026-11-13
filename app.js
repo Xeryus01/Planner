@@ -13,6 +13,7 @@ var TPL = {
 var LBL = { off: 'Lokal', busy: 'Menyinkronkan…', ok: 'Tersinkron', err: 'Gagal sinkron' };
 var S = { plans: [], del: {} }, cur = null, tab = 'c', edit = false, st = 'off', serr = '', undo = null, sure = false, msg = '', panel = false, timer = null, snT = null, sT = null;
 var syncPassword = localStorage.getItem(PW) || '';
+var hideDone = false, lastFocus = null, gotoTop = false, booting = true;
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -80,7 +81,7 @@ function merge(a, b) {
 }
 function sig(d) { return JSON.stringify([(d.plans || []).map(function (p) { return [p.id, p.u || 0]; }), Object.keys(d.del || {}).sort().map(function (k) { return [k, d.del[k]]; })]); }
 function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
-function pill() { document.querySelectorAll('.pill').forEach(function (e) { e.className = 'pill ' + st; e.textContent = LBL[st]; }); if (panel) sheet(); }
+function pill() { document.querySelectorAll('.pill').forEach(function (e) { e.className = 'pill ' + st; e.textContent = LBL[st]; }); if (panel) { var sb = document.getElementById('sh-st'); if (sb) sb.textContent = LBL[st] + (st === 'err' ? ': ' + serr : ''); } }
 async function sync() {
   st = 'busy'; pill();
   try {
@@ -113,20 +114,29 @@ function later() { clearTimeout(sT); sT = setTimeout(sync, 1200); }
 function touch(p) { p.u = Date.now(); saveLocal(); later(); }
 
 /* ---------- tampilan ---------- */
+function nextItem(p) {
+  for (var i = 0; i < p.sections.length; i++) for (var j = 0; j < p.sections[i].items.length; j++) if (!p.sections[i].items[j].d) return p.sections[i].items[j].x;
+  return '';
+}
+function dayHead(y) {
+  var d = y.date ? new Date(y.date + 'T00:00') : null, t = new Date(); t.setHours(0, 0, 0, 0);
+  var now = d && d.getTime() === t.getTime();
+  return '<div class="dnum' + (now ? ' now' : '') + '"><b>' + (d ? d.getDate() : '–') + '</b><span>' + (d ? d.toLocaleDateString('id-ID', { month: 'short' }) : '') + '</span></div><div><span class="dd">' + (d ? d.toLocaleDateString('id-ID', { weekday: 'long' }) : '') + (now ? ', hari ini' : '') + '</span><h2>' + esc(y.t) + '</h2></div>';
+}
 function P() { return S.plans.filter(function (p) { return p.id === cur; })[0]; }
 function Sx(p, id) { return p.sections.filter(function (s) { return s.id === id; })[0]; }
 function Yx(p, id) { return p.days.filter(function (s) { return s.id === id; })[0]; }
 function pillHtml() { return '<button class="pill ' + st + '" data-a="panel">' + LBL[st] + '</button>'; }
 function home() {
-  var h = '<header class="home-head"><div class="home-top"><a class="wordmark" href="./" aria-label="Perencana"><span class="brand-mark">P</span><span>Perencana</span></a>' + pillHtml() + '</div><div class="home-intro"><p class="eyebrow">RUANG RENCANA</p><h1>Rencana Anda<span>.</span></h1><p class="sub">Satu tempat untuk hal-hal yang ingin Anda tuntaskan.</p></div></header>';
-  h += '<section class="plans" aria-label="Daftar rencana"><div class="section-title"><div><p class="eyebrow">SEDANG BERJALAN</p><h2>Rencana</h2></div><span class="plan-count">' + S.plans.length + '</span></div>';
-  if (!S.plans.length) h += '<div class="empty"><span class="empty-mark">—</span><p>Belum ada rencana.</p><small>Buat satu di bawah untuk mulai menyusun langkah.</small></div>';
+  var h = '<header class="home-head"><div class="home-top"><a class="wordmark" href="./" aria-label="Perencana"><span class="brand-mark">P</span><span>Perencana</span></a>' + pillHtml() + '</div><div class="home-intro"><h1>Rencana Anda<span>.</span></h1><p class="sub">Satu tempat untuk hal-hal yang ingin Anda tuntaskan.</p></div></header>';
+  h += '<section class="plans" aria-label="Daftar rencana"><div class="section-title"><h2>Daftar rencana</h2><span class="plan-count">' + S.plans.length + '</span></div>';
+  if (booting && !S.plans.length) h += '<p class="loading" role="status">Memuat rencana…</p>'; else if (!S.plans.length) h += '<div class="empty"><span class="empty-mark">—</span><p>Belum ada rencana.</p><small>Buat satu di bawah untuk mulai menyusun langkah.</small></div>';
   h += '<div class="grid">';
   S.plans.forEach(function (p) {
     var q = prog(p), date = cd(p);
-    h += '<button class="card" data-a="open" data-p="' + p.id + '" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="card-top"><span class="em">' + esc(p.emoji) + '</span><span class="card-open" aria-hidden="true">↗</span></div><div class="card-main"><h3>' + esc(p.title) + '</h3><p class="card-note">' + esc(p.note || 'Simpan semua detail di satu tempat.') + '</p></div><div class="card-bottom"><div class="card-progress"><span class="card-date">' + esc(date || 'Tanpa tanggal') + '</span><span class="progress-label"><b>' + q[0] + '</b><span> / ' + q[1] + ' selesai</span></span><span class="progress-track"><i style="width:' + q[2] + '%"></i></span></div>' + ring(q[2], 52) + '</div></button>';
+    h += '<button class="card" data-a="open" data-p="' + p.id + '" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="card-top"><span class="em">' + esc(p.emoji) + '</span></div><div class="card-main"><h3>' + esc(p.title) + '</h3><p class="card-note">' + esc(p.note || '') + '</p>' + (nextItem(p) ? '<p class="card-next"><span>Berikutnya</span>' + esc(nextItem(p)) + '</p>' : (q[1] ? '<p class="card-next done"><span>Semua langkah selesai</span></p>' : '')) + '</div><div class="card-bottom"><div class="card-progress"><span class="card-date">' + esc(date || 'Tanpa tanggal') + '</span><span class="progress-label"><b>' + q[0] + '</b><span> / ' + q[1] + ' selesai</span></span><span class="progress-track"><i style="width:' + q[2] + '%"></i></span></div>' + ring(q[2], 52) + '</div></button>';
   });
-  return h + '</div></section><section class="new"><div class="new-copy"><p class="eyebrow">MULAI DARI SINI</p><h2>Buat rencana baru</h2><p>Pilih template atau mulai dengan halaman kosong.</p></div><div class="new-form"><input type="text" id="nt" placeholder="Contoh: Liburan akhir tahun" aria-label="Judul rencana"><select id="tp" aria-label="Template rencana"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana <span aria-hidden="true">→</span></button></div></section>';
+  return h + '</div></section><section class="new"><div class="new-copy"><h2>Buat rencana baru</h2><p>Pilih template atau mulai dengan halaman kosong.</p></div><div class="new-form"><input type="text" id="nt" placeholder="Contoh: Liburan akhir tahun" aria-label="Judul rencana"><select id="tp" aria-label="Template rencana"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana</button></div></section>';
 }
 function lists(p) {
   var h = '';
@@ -134,11 +144,13 @@ function lists(p) {
     var c = s.items.filter(function (i) { return i.d; }).length;
     h += '<details data-s="' + s.id + '"' + (s.o ? ' open' : '') + '><summary><span><b>' + esc(s.t) + '</b><small>' + esc(s.w) + '</small></span><span class="cnt' + (s.items.length && c === s.items.length ? ' ok' : '') + '" id="c' + s.id + '">' + c + '/' + s.items.length + '</span></summary><ul>';
     s.items.forEach(function (i) {
+      if (hideDone && !edit && i.d) return;
       h += '<li>' + (edit
         ? '<div class="row"><input type="text" data-f="x" data-s="' + s.id + '" data-i="' + i.id + '" value="' + esc(i.x) + '"><button class="x" data-a="deli" data-s="' + s.id + '" data-i="' + i.id + '" aria-label="Hapus">×</button></div>'
         : '<label><input type="checkbox" data-f="chk" data-s="' + s.id + '" data-i="' + i.id + '"' + (i.d ? ' checked' : '') + '><span>' + esc(i.x) + (i.n ? '<small class="nt">' + esc(i.n) + '</small>' : '') + '</span></label>') + '</li>';
     });
     h += '</ul>';
+    if (!edit) h += '<form class="qa" data-qa="' + s.id + '"><input type="text" name="q" placeholder="Tambah item" aria-label="Tambah item ke ' + esc(s.t) + '" autocomplete="off"><button class="btn" type="submit">Tambah</button></form>';
     if (edit) h += '<div class="foot"><div class="row" style="padding:0"><input type="text" id="a' + s.id + '" placeholder="Tambah item"><button class="btn pri" data-a="addi" data-s="' + s.id + '">Tambah</button></div><div class="row" style="padding:0"><input type="text" data-f="st" data-s="' + s.id + '" value="' + esc(s.t) + '"><input type="text" data-f="sw" data-s="' + s.id + '" value="' + esc(s.w) + '" placeholder="Waktu" style="max-width:38%"></div><button class="btn dng" data-a="dels" data-s="' + s.id + '">Hapus bagian</button></div>';
     h += '</details>';
   });
@@ -150,7 +162,7 @@ function days(p) {
   p.days.forEach(function (y) {
     h += '<div class="day"><header>' + (edit
       ? '<div class="row" style="padding:0"><input type="date" data-f="dd" data-y="' + y.id + '" value="' + esc(y.date) + '"><input type="text" data-f="dt" data-y="' + y.id + '" value="' + esc(y.t) + '"></div>'
-      : '<span class="dd">' + esc(fd(y.date)) + '</span><h2>' + esc(y.t) + '</h2>') + '</header><ul>';
+      : dayHead(y)) + '</header><ul>';
     y.stops.forEach(function (i) {
       h += '<li>' + (edit
         ? '<div class="row"><input type="time" data-f="tm" data-y="' + y.id + '" data-i="' + i.id + '" value="' + esc(i.tm) + '" style="max-width:110px"><input type="text" data-f="sx" data-y="' + y.id + '" data-i="' + i.id + '" value="' + esc(i.x) + '"><button class="x" data-a="delt" data-y="' + y.id + '" data-i="' + i.id + '" aria-label="Hapus">×</button></div>'
@@ -171,9 +183,10 @@ function plan(p) {
     Object.keys(COL).forEach(function (k) { h += '<span class="dot" data-a="color" data-v="' + k + '" style="background:' + COL[k] + '"></span>'; });
     h += '</div>';
   } else h += '<h1>' + esc(p.title) + '</h1><p>' + esc(p.note) + '</p>' + (cd(p) ? '<span class="chip">' + cd(p) + '</span>' : '');
-  h += '</div><div id="hr">' + ring(r[2], 88) + '</div></div><div class="st" id="st">' + r[0] + ' dari ' + r[1] + ' selesai</div></section>';
+  h += '</div><div id="hr">' + ring(r[2], 88) + '</div></div><div class="st" id="st" aria-live="polite">' + r[0] + ' dari ' + r[1] + ' selesai</div></section>';
+  if (tab === 'c' && !edit) h += '<div class="toolbar"><button class="chip-btn" data-a="hide" aria-pressed="' + hideDone + '">Sembunyikan yang selesai</button></div>';
   h += tab === 'c' ? lists(p) : days(p);
-  if (edit) h += '<button class="btn dng" data-a="delplan" style="margin-top:18px;width:100%">' + (sure ? 'Ketuk lagi untuk menghapus permanen' : 'Hapus rencana ini') + '</button>';
+  if (edit) h += '<button class="btn dng" data-a="delplan" style="margin-top:18px;width:100%">' + 'Hapus rencana ini' + '</button>';
   h += '<nav class="nav" aria-label="Navigasi rencana"><div><button class="btn ' + (tab === 'c' ? 'on' : '') + '" aria-pressed="' + (tab === 'c') + '" data-a="tab" data-v="c">Checklist</button><button class="btn ' + (tab === 'j' ? 'on' : '') + '" aria-pressed="' + (tab === 'j') + '" data-a="tab" data-v="j">Jadwal</button><button class="btn ' + (edit ? 'pri' : '') + '" aria-pressed="' + edit + '" data-a="edit">' + (edit ? 'Selesai' : 'Ubah') + '</button></div></nav>';
   return h;
 }
@@ -185,11 +198,26 @@ function upd() {
 function snack(m, f) { undo = f || null; $('#snt').textContent = m; $('#sn button').style.display = f ? '' : 'none'; $('#sn').style.display = 'flex'; clearTimeout(snT); snT = setTimeout(function () { $('#sn').style.display = 'none'; undo = null; }, 6000); }
 function sheet() {
   var el = $('#sheet'); if (!panel) { el.innerHTML = ''; return; }
-  var h = '<div class="sheet" data-a="close"><div class="box"><h2>Sinkronisasi</h2><p>Status: <b>' + LBL[st] + '</b>' + (st === 'err' ? ' · ' + esc(serr) : '') + '</p><p>Data bersama dibaca dari <code>data.json</code> di GitHub. Perubahan disimpan ke repo, lalu bisa dibaca semua perangkat.</p><p>Masukkan kata sandi yang sama dengan nilai <code>SYNC_PASSWORD</code> di pengaturan Vercel:</p><form id="sync-form" autocomplete="on"><div class="row"><input type="password" name="syncpw" autocomplete="current-password" placeholder="' + (syncPassword ? 'Kata sandi tersimpan di perangkat ini' : 'Kata sandi sinkronisasi') + '"><button class="btn pri" type="submit">Simpan &amp; sinkron</button></div></form><p>Kata sandi hanya disimpan di perangkat ini, bukan di <code>config.js</code>.</p><div class="tools"><button class="btn" data-a="sync">Sinkron sekarang</button></div>';
+  var h = '<div class="sheet" data-a="close"><div class="box" role="dialog" aria-modal="true" aria-labelledby="sh-t"><h2 id="sh-t">Sinkronisasi</h2><p role="status">Status: <b id="sh-st">' + LBL[st] + (st === 'err' ? ': ' + esc(serr) : '') + '</b></p><p>Data bersama dibaca dari <code>data.json</code> di GitHub. Perubahan disimpan ke repo, lalu bisa dibaca semua perangkat.</p><p>Masukkan kata sandi yang sama dengan nilai <code>SYNC_PASSWORD</code> di pengaturan Vercel:</p><form id="sync-form" autocomplete="on"><div class="row"><input type="password" name="syncpw" autocomplete="current-password" placeholder="' + (syncPassword ? 'Kata sandi tersimpan di perangkat ini' : 'Kata sandi sinkronisasi') + '"><button class="btn pri" type="submit">Simpan &amp; sinkron</button></div></form><p>Kata sandi hanya disimpan di perangkat ini, bukan di <code>config.js</code>.</p><div class="tools"><button class="btn" data-a="sync">Sinkron sekarang</button></div>';
   if (msg) h += '<div class="m">' + esc(msg) + '</div>';
   h += '<div class="tools"><button class="btn" data-a="exp">Ekspor JSON</button><button class="btn" data-a="imp">Impor JSON</button></div><button class="btn" data-a="close">Tutup</button></div></div>';
   el.innerHTML = h;
 }
+
+function closeSheet() { panel = false; msg = ''; sheet(); if (lastFocus && lastFocus.focus) lastFocus.focus(); }
+document.addEventListener('keydown', function (e) {
+  var t = e.target;
+  if (e.key === 'Escape' && panel) return closeSheet();
+  if (e.key === 'Tab' && panel) {
+    var f = Array.prototype.slice.call(document.querySelectorAll('#sheet button, #sheet input')); if (!f.length) return;
+    if (e.shiftKey && t === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && t === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+  }
+  if (e.key === 'Enter' && t.tagName === 'INPUT' && t.type === 'text' && t.id) {
+    var btn = t.id === 'nt' ? document.querySelector('[data-a="newplan"]') : (/^(a|t|ns)/.test(t.id) && t.nextElementSibling && t.nextElementSibling.tagName === 'BUTTON' ? t.nextElementSibling : null);
+    if (btn) { e.preventDefault(); btn.click(); }
+  }
+});
 
 /* ---------- aksi ---------- */
 function rm(arr, id, m, p) {
@@ -197,6 +225,14 @@ function rm(arr, id, m, p) {
   touch(p); snack(m, function () { arr.splice(k, 0, o); touch(p); render(); }); render();
 }
 document.addEventListener('submit', function (e) {
+  var qa = e.target.dataset && e.target.dataset.qa;
+  if (qa) {
+    e.preventDefault();
+    var p0 = P(), v0 = e.target.elements.q.value.trim(); if (!p0 || !v0) return;
+    Sx(p0, qa).items.push(item(v0, 0)); touch(p0); render();
+    var nf = document.querySelector('[data-qa="' + qa + '"] input'); if (nf) nf.focus();
+    return;
+  }
   if (e.target.id !== 'sync-form') return;
   e.preventDefault();
   var pw = e.target.querySelector('[name="syncpw"]').value;
@@ -206,20 +242,21 @@ document.addEventListener('submit', function (e) {
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-a]'); if (!b) return;
   var a = b.dataset.a, d = b.dataset, p = cur && P();
-  if (a === 'close') { if (e.target !== b) return; panel = false; msg = ''; return sheet(); }
-  if (a === 'panel') { panel = true; return sheet(); }
+  if (a === 'close') { if (e.target !== b) return; return closeSheet(); }
+  if (a === 'panel') { lastFocus = document.activeElement; panel = true; sheet(); var f0 = $('#sheet input'); if (f0) f0.focus(); return; }
   if (a === 'undo') { if (undo) { undo(); undo = null; $('#sn').style.display = 'none'; } return; }
   if (a === 'sync') { return sync(); }
   if (a === 'exp') { var l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' })); l.download = 'perencana-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); return; }
   if (a === 'imp') { return $('#file').click(); }
-  if (a === 'open') { cur = d.p; tab = 'c'; edit = false; sure = false; }
+  if (a === 'open') { cur = d.p; tab = 'c'; edit = false; sure = false; gotoTop = true; }
   else if (a === 'home') { cur = null; edit = false; }
   else if (a === 'newplan') {
     var t2 = $('#nt').value.trim(); if (!t2) return;
     var n = norm({ title: t2, ord: Date.now(), sections: TPL[$('#tp').value].map(function (x) { return { t: x[0], w: '', o: true, items: x.slice(1) }; }) });
     S.plans.push(n); touch(n); cur = n.id; edit = true; tab = 'c';
   }
-  else if (a === 'tab') tab = d.v;
+  else if (a === 'tab') { tab = d.v; gotoTop = true; }
+  else if (a === 'hide') hideDone = !hideDone;
   else if (a === 'edit') edit = !edit;
   else if (a === 'color') { p.color = d.v; touch(p); }
   else if (a === 'addi') { var i = document.getElementById('a' + d.s), v = i.value.trim(); if (!v) return; Sx(p, d.s).items.push(item(v, 0)); touch(p); render(); document.getElementById('a' + d.s).focus(); return; }
@@ -231,10 +268,12 @@ document.addEventListener('click', function (e) {
   else if (a === 'addd') { var lst = p.days[p.days.length - 1], dt = lst && lst.date ? new Date(lst.date + 'T00:00') : new Date(p.start || Date.now()); if (lst) dt.setDate(dt.getDate() + 1); p.days.push({ id: uid(), date: dt.toISOString().slice(0, 10), t: 'Hari baru', stops: [] }); touch(p); }
   else if (a === 'deld') return rm(p.days, d.y, 'Hari dihapus', p);
   else if (a === 'delplan') {
-    if (!sure) { sure = true; b.textContent = 'Ketuk lagi untuk menghapus permanen'; return; }
-    S.plans = S.plans.filter(function (x) { return x.id !== p.id; }); S.del[p.id] = Date.now(); saveLocal(); later(); cur = null; edit = false; sure = false;
+    var gone = p, gi = S.plans.indexOf(p);
+    S.plans.splice(gi, 1); S.del[p.id] = Date.now(); saveLocal(); later(); cur = null; edit = false;
+    snack('Rencana “' + gone.title + '” dihapus', function () { gone.u = Date.now(); S.plans.splice(gi, 0, gone); saveLocal(); later(); render(); });
   }
   render();
+  if (gotoTop) { window.scrollTo(0, 0); gotoTop = false; }
 });
 document.addEventListener('change', function (e) {
   var t = e.target;
@@ -275,8 +314,8 @@ setInterval(again, 20000); document.addEventListener('visibilitychange', again);
 (async function boot() {
   var d = null; try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   var cached = d && Array.isArray(d.plans);
-  if (!cached) { try { d = await (await fetch('data.json', { cache: 'no-store' })).json(); } catch (e) { d = { plans: [] }; } }
-  S = { plans: d.plans.map(norm), del: d.del || {} };
-  render(); sync();
+  if (!cached) { try { d = await open(await (await fetch('data.json', { cache: 'no-store' })).json()); } catch (e) { d = null; } }
+  S = { plans: ((d && d.plans) || []).map(norm), del: (d && d.del) || {} };
+  render(); sync().then(function () { booting = false; render(); });
 })();
 })();
