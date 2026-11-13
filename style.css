@@ -552,3 +552,47 @@ details label, .day label { min-height: 48px; }
 .x { min-width: 44px; min-height: 44px; }
 .skip { position: absolute; left: 8px; top: -60px; z-index: 60; padding: 10px 14px; border-radius: 10px; background: var(--ink); color: var(--surface); }
 .skip:focus { top: 8px; }
+
+/* ---------- v4: kedalaman 3D, dok navigasi, warna aksen ---------- */
+:root { --on-accent: #fff; --lift: 0 1px 0 rgba(255,255,255,.9) inset, 0 2px 0 var(--line), 0 16px 30px -12px rgba(24,40,32,.24); }
+@media (prefers-color-scheme: dark) { :root { --on-accent: #0e1a12; --lift: 0 1px 0 rgba(255,255,255,.07) inset, 0 2px 0 rgba(0,0,0,.4), 0 18px 32px -12px rgba(0,0,0,.6); } }
+body { background: radial-gradient(820px 460px at 88% -8%, color-mix(in srgb, var(--accent) 15%, transparent), transparent 70%), radial-gradient(640px 400px at -8% 6%, color-mix(in srgb, var(--signal) 13%, transparent), transparent 70%), var(--page); background-attachment: fixed; }
+main#app { padding-bottom: calc(136px + env(safe-area-inset-bottom, 0px)); }
+.btn { box-shadow: 0 2px 0 var(--line); transition: transform .12s ease, box-shadow .12s ease, background .12s ease; }
+.btn:active { transform: translateY(2px); box-shadow: 0 0 0 var(--line); }
+.btn.pri { border-color: transparent; background: linear-gradient(180deg, var(--accent), var(--accent-strong)); color: var(--on-accent); box-shadow: 0 1px 0 rgba(255,255,255,.28) inset, 0 3px 0 color-mix(in srgb, var(--accent-strong) 62%, #000), 0 10px 16px -6px color-mix(in srgb, var(--accent) 60%, transparent); }
+.btn.pri:active { box-shadow: 0 1px 0 color-mix(in srgb, var(--accent-strong) 62%, #000); }
+.card { border: 0; border-radius: 20px; background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 90%, var(--c))); box-shadow: var(--lift), 0 0 0 1px var(--line); position: relative; overflow: hidden; transition: transform .28s cubic-bezier(.2,.8,.2,1), box-shadow .28s ease; }
+.card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 6px; background: var(--c); }
+.card:hover { transform: perspective(900px) translateY(-6px) rotateX(2.5deg); box-shadow: var(--lift), 0 0 0 1px color-mix(in srgb, var(--c) 40%, var(--line)), 0 26px 36px -16px color-mix(in srgb, var(--c) 45%, transparent); }
+.card:active { transform: perspective(900px) translateY(-1px); }
+.card .em { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 15px; background: var(--surface-soft); box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 3px 0 var(--line); font-size: 24px; }
+.ring { filter: drop-shadow(0 3px 3px rgba(0,0,0,.16)); }
+.card-next span { color: var(--muted); }
+.hero { border-top: 0; border-radius: 24px; background: radial-gradient(120% 150% at 100% 0%, color-mix(in srgb, var(--c) 62%, #fff) 0%, transparent 56%), linear-gradient(152deg, color-mix(in srgb, var(--c) 88%, #000), color-mix(in srgb, var(--c) 38%, #0a120e)); box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 8px 0 -2px color-mix(in srgb, var(--c) 36%, #000), 0 30px 44px -18px color-mix(in srgb, var(--c) 70%, #000); }
+.hero #hr { padding: 8px; border-radius: 50%; background: radial-gradient(circle at 30% 24%, rgba(255,255,255,.24), rgba(0,0,0,.2)); box-shadow: 0 1px 0 rgba(255,255,255,.34) inset, 0 10px 18px rgba(0,0,0,.3); }
+.hero .em { display: grid; width: 52px; height: 52px; place-items: center; border-radius: 16px; background: rgba(255,255,255,.14); box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 4px 0 rgba(0,0,0,.2); font-size: 28px; }
+details, .day { border-radius: 18px; box-shadow: var(--lift), 0 0 0 1px var(--line); border-color: transparent; }
+input[type=checkbox] { width: 26px; height: 26px; border: 0; border-radius: 8px; background: var(--surface); box-shadow: 0 0 0 1.5px #aeb8ac inset, 0 3px 0 var(--line), 0 5px 8px rgba(0,0,0,.08); transition: transform .12s ease, box-shadow .12s ease; }
+input[type=checkbox]:active { transform: translateY(2px); box-shadow: 0 0 0 1.5px #aeb8ac inset, 0 1px 0 var(--line); }
+input[type=checkbox]:checked { background: linear-gradient(180deg, var(--accent), var(--accent-strong)); box-shadow: 0 1px 0 rgba(255,255,255,.28) inset, 0 3px 0 color-mix(in srgb, var(--accent-strong) 62%, #000), 0 6px 10px rgba(0,0,0,.16); animation: pop .24s ease; }
+input[type=checkbox]:checked::after { width: 6px; height: 11px; margin: 4px 0 0 8px; border-color: var(--on-accent); }
+@keyframes pop { 50% { transform: scale(1.16) rotate(-5deg); } }
+.dnum { box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 3px 0 var(--line); }
+.dnum.now { box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 3px 0 color-mix(in srgb, var(--signal) 58%, #3a2400); }
+.chip-btn { box-shadow: 0 2px 0 var(--line); }
+.chip-btn:active { transform: translateY(2px); box-shadow: none; }
+.nav > div { max-width: 460px; gap: 8px; padding: 8px; border: 0; border-radius: 28px; background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 95%, #fff), var(--surface-soft)); box-shadow: 0 1px 0 rgba(255,255,255,.85) inset, 0 0 0 1px var(--line), 0 6px 0 -2px var(--line), 0 26px 46px -14px rgba(16,30,22,.42); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.tabbtn { display: flex; min-width: 0; height: 64px; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 0 4px; border: 0; border-radius: 20px; background: transparent; color: color-mix(in srgb, var(--ink) 72%, var(--surface)); font: 700 12px/1 "Figtree", system-ui, sans-serif; cursor: pointer; transition: transform .16s cubic-bezier(.2,.8,.2,1), box-shadow .16s ease, background .16s ease; }
+.tabbtn svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.tabbtn:hover { background: var(--surface); color: var(--ink); }
+.tabbtn.on { background: linear-gradient(180deg, var(--accent), var(--accent-strong)); color: var(--on-accent); box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 4px 0 color-mix(in srgb, var(--accent-strong) 60%, #000), 0 14px 20px -8px color-mix(in srgb, var(--accent-strong) 75%, transparent); transform: translateY(-4px); }
+.tabbtn.edit { background: linear-gradient(180deg, color-mix(in srgb, var(--signal) 78%, #fff), var(--signal)); color: var(--signal-ink); box-shadow: 0 1px 0 rgba(255,255,255,.55) inset, 0 4px 0 color-mix(in srgb, var(--signal) 56%, #3a2400), 0 12px 18px -8px color-mix(in srgb, var(--signal) 75%, transparent); transform: translateY(-4px); }
+.tabbtn.edit.editing { background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 82%, #fff), var(--ink)); color: var(--surface); box-shadow: 0 1px 0 rgba(255,255,255,.2) inset, 0 4px 0 #000, 0 12px 18px -8px rgba(0,0,0,.5); }
+.tabbtn:active, .tabbtn.on:active, .tabbtn.edit:active { transform: translateY(0); box-shadow: 0 0 0 transparent; }
+@media (min-width: 700px) { .nav { width: min(460px, calc(100% - 32px)); } }
+.sn { bottom: calc(118px + env(safe-area-inset-bottom, 0px)); }
+body.intro .card { animation: rise .55s cubic-bezier(.2,.8,.2,1) both; }
+body.intro .card:nth-child(2) { animation-delay: .07s; } body.intro .card:nth-child(3) { animation-delay: .14s; } body.intro .card:nth-child(n+4) { animation-delay: .21s; }
+@keyframes rise { from { opacity: 0; transform: perspective(900px) translateY(22px) rotateX(-6deg); } }
+@media (prefers-reduced-motion: reduce) { .card, .card:hover, .tabbtn, .btn, input[type=checkbox] { transition: none !important; animation: none !important; } body.intro .card { animation: none !important; } }

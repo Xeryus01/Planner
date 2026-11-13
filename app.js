@@ -114,6 +114,12 @@ function later() { clearTimeout(sT); sT = setTimeout(sync, 1200); }
 function touch(p) { p.u = Date.now(); saveLocal(); later(); }
 
 /* ---------- tampilan ---------- */
+var IC = {
+  c: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h9"/></svg>',
+  j: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="3"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  e: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
+  ok: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>'
+};
 function nextItem(p) {
   for (var i = 0; i < p.sections.length; i++) for (var j = 0; j < p.sections[i].items.length; j++) if (!p.sections[i].items[j].d) return p.sections[i].items[j].x;
   return '';
@@ -187,7 +193,10 @@ function plan(p) {
   if (tab === 'c' && !edit) h += '<div class="toolbar"><button class="chip-btn" data-a="hide" aria-pressed="' + hideDone + '">Sembunyikan yang selesai</button></div>';
   h += tab === 'c' ? lists(p) : days(p);
   if (edit) h += '<button class="btn dng" data-a="delplan" style="margin-top:18px;width:100%">' + 'Hapus rencana ini' + '</button>';
-  h += '<nav class="nav" aria-label="Navigasi rencana"><div><button class="btn ' + (tab === 'c' ? 'on' : '') + '" aria-pressed="' + (tab === 'c') + '" data-a="tab" data-v="c">Checklist</button><button class="btn ' + (tab === 'j' ? 'on' : '') + '" aria-pressed="' + (tab === 'j') + '" data-a="tab" data-v="j">Jadwal</button><button class="btn ' + (edit ? 'pri' : '') + '" aria-pressed="' + edit + '" data-a="edit">' + (edit ? 'Selesai' : 'Ubah') + '</button></div></nav>';
+  h += '<nav class="nav" aria-label="Navigasi rencana"><div>' +
+    '<button class="tabbtn' + (tab === 'c' ? ' on' : '') + '" aria-pressed="' + (tab === 'c') + '" data-a="tab" data-v="c">' + IC.c + '<span>Checklist</span></button>' +
+    '<button class="tabbtn' + (tab === 'j' ? ' on' : '') + '" aria-pressed="' + (tab === 'j') + '" data-a="tab" data-v="j">' + IC.j + '<span>Jadwal</span></button>' +
+    '<button class="tabbtn edit' + (edit ? ' editing' : '') + '" aria-pressed="' + edit + '" data-a="edit">' + (edit ? IC.ok : IC.e) + '<span>' + (edit ? 'Selesai' : 'Ubah') + '</span></button></div></nav>';
   return h;
 }
 function render() { var p = cur && P(); if (cur && !p) cur = null; app.innerHTML = p ? plan(p) : home(); }
@@ -316,6 +325,7 @@ setInterval(again, 20000); document.addEventListener('visibilitychange', again);
   var cached = d && Array.isArray(d.plans);
   if (!cached) { try { d = await open(await (await fetch('data.json', { cache: 'no-store' })).json()); } catch (e) { d = null; } }
   S = { plans: ((d && d.plans) || []).map(norm), del: (d && d.del) || {} };
-  render(); sync().then(function () { booting = false; render(); });
+  render(); document.body.classList.add('intro'); setTimeout(function () { document.body.classList.remove('intro'); }, 1400);
+  sync().then(function () { booting = false; render(); });
 })();
 })();
