@@ -3,7 +3,7 @@
 var C = Object.assign({ SECRET: '' }, window.CONFIG || {});
 var KEY = 'perencana:v2', PW = 'perencana:sync-password', API = '/api/data';
 var $ = function (s) { return document.querySelector(s); }, app = $('#app');
-var COL = { teal: '#0e7c86', indigo: '#4f46e5', amber: '#c77d00', rose: '#d6336c', green: '#2f9e44' };
+var COL = { teal: '#48745d', indigo: '#6d7192', amber: '#a8763e', rose: '#a85e5d', green: '#61805d' };
 var TPL = {
   kosong: [],
   liburan: [['Dokumen', 'Paspor, tiket, asuransi', 'Penginapan dan transportasi dipesan'], ['Bawaan', 'Baju, obat, charger', 'Uang dan kartu'], ['Hari H', 'Cek dokumen dan kunci rumah']],
@@ -36,7 +36,7 @@ function cd(p) {
 function fd(d) { return d ? new Date(d + 'T00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }) : ''; }
 function ring(v, size) {
   var r = size / 2 - 6, c = 2 * Math.PI * r, h = size / 2;
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-label="' + v + ' persen selesai"><circle cx="' + h + '" cy="' + h + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="7"/><circle cx="' + h + '" cy="' + h + '" r="' + r + '" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - v / 100) + '" transform="rotate(-90 ' + h + ' ' + h + ')"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="#fff" font-size="' + size / 3.6 + '" font-weight="700">' + v + '%</text></svg>';
+  return '<svg class="ring" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" role="img" aria-label="' + v + ' persen selesai"><circle cx="' + h + '" cy="' + h + '" r="' + r + '" fill="none" stroke="var(--ring-track)" stroke-width="5"/><circle cx="' + h + '" cy="' + h + '" r="' + r + '" fill="none" stroke="var(--ring-line)" stroke-width="5" stroke-linecap="round" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - v / 100) + '" transform="rotate(-90 ' + h + ' ' + h + ')"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="var(--ring-ink)" font-size="' + size / 3.7 + '" font-weight="700">' + v + '%</text></svg>';
 }
 
 /* ---------- penyimpanan lokal + enkripsi + sinkron ---------- */
@@ -118,12 +118,15 @@ function Sx(p, id) { return p.sections.filter(function (s) { return s.id === id;
 function Yx(p, id) { return p.days.filter(function (s) { return s.id === id; })[0]; }
 function pillHtml() { return '<button class="pill ' + st + '" data-a="panel">' + LBL[st] + '</button>'; }
 function home() {
-  var h = '<header class="hd"><div><h1>Perencana</h1><p class="sub">Checklist dan jadwal untuk kegiatan apa pun</p></div>' + pillHtml() + '</header><div class="grid">';
+  var h = '<header class="home-head"><div class="home-top"><a class="wordmark" href="./" aria-label="Perencana"><span class="brand-mark">P</span><span>Perencana</span></a>' + pillHtml() + '</div><div class="home-intro"><p class="eyebrow">RUANG RENCANA</p><h1>Rencana Anda<span>.</span></h1><p class="sub">Satu tempat untuk hal-hal yang ingin Anda tuntaskan.</p></div></header>';
+  h += '<section class="plans" aria-label="Daftar rencana"><div class="section-title"><div><p class="eyebrow">SEDANG BERJALAN</p><h2>Rencana</h2></div><span class="plan-count">' + S.plans.length + '</span></div>';
+  if (!S.plans.length) h += '<div class="empty"><span class="empty-mark">—</span><p>Belum ada rencana.</p><small>Buat satu di bawah untuk mulai menyusun langkah.</small></div>';
+  h += '<div class="grid">';
   S.plans.forEach(function (p) {
-    var q = prog(p);
-    h += '<button class="card" data-a="open" data-p="' + p.id + '" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="ct"><span class="em">' + esc(p.emoji) + '</span>' + ring(q[2], 58) + '</div><h2>' + esc(p.title) + '</h2><small>' + esc(cd(p) || p.note) + '</small><small>' + q[0] + ' dari ' + q[1] + ' selesai</small></button>';
+    var q = prog(p), date = cd(p);
+    h += '<button class="card" data-a="open" data-p="' + p.id + '" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="card-top"><span class="em">' + esc(p.emoji) + '</span><span class="card-open" aria-hidden="true">↗</span></div><div class="card-main"><h3>' + esc(p.title) + '</h3><p class="card-note">' + esc(p.note || 'Simpan semua detail di satu tempat.') + '</p></div><div class="card-bottom"><div class="card-progress"><span class="card-date">' + esc(date || 'Tanpa tanggal') + '</span><span class="progress-label"><b>' + q[0] + '</b><span> / ' + q[1] + ' selesai</span></span><span class="progress-track"><i style="width:' + q[2] + '%"></i></span></div>' + ring(q[2], 52) + '</div></button>';
   });
-  return h + '</div><div class="new"><b>Rencana baru</b><input type="text" id="nt" placeholder="Judul, misalnya Pernikahan Sari"><select id="tp"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana</button></div>';
+  return h + '</div></section><section class="new"><div class="new-copy"><p class="eyebrow">MULAI DARI SINI</p><h2>Buat rencana baru</h2><p>Pilih template atau mulai dengan halaman kosong.</p></div><div class="new-form"><input type="text" id="nt" placeholder="Contoh: Liburan akhir tahun" aria-label="Judul rencana"><select id="tp" aria-label="Template rencana"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana <span aria-hidden="true">→</span></button></div></section>';
 }
 function lists(p) {
   var h = '';
@@ -171,7 +174,7 @@ function plan(p) {
   h += '</div><div id="hr">' + ring(r[2], 88) + '</div></div><div class="st" id="st">' + r[0] + ' dari ' + r[1] + ' selesai</div></section>';
   h += tab === 'c' ? lists(p) : days(p);
   if (edit) h += '<button class="btn dng" data-a="delplan" style="margin-top:18px;width:100%">' + (sure ? 'Ketuk lagi untuk menghapus permanen' : 'Hapus rencana ini') + '</button>';
-  h += '<nav class="nav"><div><button class="btn ' + (tab === 'c' ? 'on' : '') + '" data-a="tab" data-v="c"><span>✅</span>Checklist</button><button class="btn ' + (tab === 'j' ? 'on' : '') + '" data-a="tab" data-v="j"><span>🗓️</span>Jadwal</button><button class="btn ' + (edit ? 'pri' : '') + '" data-a="edit"><span>' + (edit ? '✔️' : '✏️') + '</span>' + (edit ? 'Selesai' : 'Ubah') + '</button></div></nav>';
+  h += '<nav class="nav" aria-label="Navigasi rencana"><div><button class="btn ' + (tab === 'c' ? 'on' : '') + '" aria-pressed="' + (tab === 'c') + '" data-a="tab" data-v="c">Checklist</button><button class="btn ' + (tab === 'j' ? 'on' : '') + '" aria-pressed="' + (tab === 'j') + '" data-a="tab" data-v="j">Jadwal</button><button class="btn ' + (edit ? 'pri' : '') + '" aria-pressed="' + edit + '" data-a="edit">' + (edit ? 'Selesai' : 'Ubah') + '</button></div></nav>';
   return h;
 }
 function render() { var p = cur && P(); if (cur && !p) cur = null; app.innerHTML = p ? plan(p) : home(); }
