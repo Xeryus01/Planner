@@ -1,9 +1,9 @@
 (function () {
 'use strict';
-var C = Object.assign({ SECRET: '' }, window.CONFIG || {});
-var KEY = 'perencana:v2', PW = 'perencana:sync-password', API = '/api/data';
+var C = Object.assign({ BIN_ID: '', SECRET: '', API: 'https://json.extendsclass.com/bin' }, window.CONFIG || {});
+var KEY = 'perencana:v2', LB = 'perencana:bin';
 var $ = function (s) { return document.querySelector(s); }, app = $('#app');
-var COL = { teal: '#48745d', indigo: '#6d7192', amber: '#a8763e', rose: '#a85e5d', green: '#61805d' };
+var COL = { teal: '#0e7c86', indigo: '#4f46e5', amber: '#c77d00', rose: '#d6336c', green: '#2f9e44' };
 var TPL = {
   kosong: [],
   liburan: [['Dokumen', 'Paspor, tiket, asuransi', 'Penginapan dan transportasi dipesan'], ['Bawaan', 'Baju, obat, charger', 'Uang dan kartu'], ['Hari H', 'Cek dokumen dan kunci rumah']],
@@ -12,7 +12,7 @@ var TPL = {
 };
 var LBL = { off: 'Lokal', busy: 'Menyinkronkan…', ok: 'Tersinkron', err: 'Gagal sinkron' };
 var S = { plans: [], del: {} }, cur = null, tab = 'c', edit = false, st = 'off', serr = '', undo = null, sure = false, msg = '', panel = false, timer = null, snT = null, sT = null;
-var syncPassword = localStorage.getItem(PW) || '';
+var BIN = C.BIN_ID || localStorage.getItem(LB) || '';
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -36,7 +36,7 @@ function cd(p) {
 function fd(d) { return d ? new Date(d + 'T00:00').toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }) : ''; }
 function ring(v, size) {
   var r = size / 2 - 6, c = 2 * Math.PI * r, h = size / 2;
-  return '<svg class="ring" width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" role="img" aria-label="' + v + ' persen selesai"><circle cx="' + h + '" cy="' + h + '" r="' + r + '" fill="none" stroke="var(--ring-track)" stroke-width="5"/><circle cx="' + h + '" cy="' + h + '" r="' + r + '" fill="none" stroke="var(--ring-line)" stroke-width="5" stroke-linecap="round" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - v / 100) + '" transform="rotate(-90 ' + h + ' ' + h + ')"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="var(--ring-ink)" font-size="' + size / 3.7 + '" font-weight="700">' + v + '%</text></svg>';
+  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 ' + size + ' ' + size + '" aria-label="' + v + ' persen selesai"><circle cx="' + h + '" cy="' + h + '" r="' + r + '" fill="none" stroke="rgba(255,255,255,.28)" stroke-width="7"/><circle cx="' + h + '" cy="' + h + '" r="' + r + '" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-dasharray="' + c + '" stroke-dashoffset="' + c * (1 - v / 100) + '" transform="rotate(-90 ' + h + ' ' + h + ')"/><text x="50%" y="50%" text-anchor="middle" dominant-baseline="central" fill="#fff" font-size="' + size / 3.6 + '" font-weight="700">' + v + '%</text></svg>';
 }
 
 /* ---------- penyimpanan lokal + enkripsi + sinkron ---------- */
@@ -59,14 +59,8 @@ async function open(b) {
   return b.plans ? b : null;
 }
 async function req(url, o) {
-  var options = Object.assign({ cache: 'no-store', headers: { 'Content-Type': 'application/json' } }, o);
-  if (options.method === 'PUT' && syncPassword) options.headers.Authorization = 'Bearer ' + syncPassword;
-  var r = await fetch(url, options);
-  if (!r.ok) {
-    var detail = '';
-    try { var body = await r.json(); detail = body.message || ''; } catch (e) {}
-    throw new Error('http ' + r.status + (detail ? ': ' + detail : ''));
-  }
+  var r = await fetch(url, Object.assign({ cache: 'no-store', headers: { 'Content-Type': 'application/json' } }, o));
+  if (!r.ok) throw new Error('http ' + r.status);
   return r.json();
 }
 function merge(a, b) {
@@ -82,31 +76,17 @@ function sig(d) { return JSON.stringify([(d.plans || []).map(function (p) { retu
 function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 function pill() { document.querySelectorAll('.pill').forEach(function (e) { e.className = 'pill ' + st; e.textContent = LBL[st]; }); if (panel) sheet(); }
 async function sync() {
+  if (!BIN) { st = 'off'; pill(); return; }
   st = 'busy'; pill();
   try {
-    for (var attempt = 0; attempt < 3; attempt++) {
-      var rem = null;
-      try { rem = await open(await req(API)); }
-      catch (e) {
-        if (e.name === 'OperationError') throw new Error('SECRET di config.js tidak cocok dengan data di GitHub');
-        throw e;
-      }
-      var m = merge(S, rem || { plans: [], del: {} });
-      if (sig(m) !== sig(S)) { S = m; saveLocal(); var a = document.activeElement; if (!(a && /INPUT|SELECT/.test(a.tagName))) render(); }
-      if (!rem || sig(m) !== sig(rem)) {
-        try { await req(API, { method: 'PUT', body: JSON.stringify(await seal(m)) }); }
-        catch (e) { if (e.message.indexOf('http 409') === 0 && attempt < 2) continue; throw e; }
-      }
-      st = 'ok'; serr = '';
-      break;
-    }
-  } catch (e) {
-    st = 'err';
-    var errorMessage = e.message || String(e);
-    if (errorMessage.indexOf('http 401') === 0) serr = 'Kata sandi sinkronisasi salah atau belum diatur pada perangkat ini.';
-    else if (errorMessage.indexOf('GITHUB_TOKEN is not configured') !== -1) serr = 'GITHUB_TOKEN belum tersedia pada deployment Vercel. Atur untuk Production lalu redeploy.';
-    else serr = errorMessage;
-  }
+    var rem = null;
+    try { rem = await open(await req(C.API + '/' + BIN)); }
+    catch (e) { if (e.name === 'OperationError') throw new Error('SECRET di config.js tidak cocok dengan yang dipakai saat data dibuat'); throw e; }
+    var m = merge(S, rem || { plans: [], del: {} });
+    if (sig(m) !== sig(S)) { S = m; saveLocal(); var a = document.activeElement; if (!(a && /INPUT|SELECT/.test(a.tagName))) render(); }
+    if (!rem || sig(m) !== sig(rem)) await req(C.API + '/' + BIN, { method: 'PUT', body: JSON.stringify(await seal(m)) });
+    st = 'ok'; serr = '';
+  } catch (e) { st = 'err'; serr = e.message || String(e); }
   pill();
 }
 function later() { clearTimeout(sT); sT = setTimeout(sync, 1200); }
@@ -118,15 +98,12 @@ function Sx(p, id) { return p.sections.filter(function (s) { return s.id === id;
 function Yx(p, id) { return p.days.filter(function (s) { return s.id === id; })[0]; }
 function pillHtml() { return '<button class="pill ' + st + '" data-a="panel">' + LBL[st] + '</button>'; }
 function home() {
-  var h = '<header class="home-head"><div class="home-top"><a class="wordmark" href="./" aria-label="Perencana"><span class="brand-mark">P</span><span>Perencana</span></a>' + pillHtml() + '</div><div class="home-intro"><p class="eyebrow">RUANG RENCANA</p><h1>Rencana Anda<span>.</span></h1><p class="sub">Satu tempat untuk hal-hal yang ingin Anda tuntaskan.</p></div></header>';
-  h += '<section class="plans" aria-label="Daftar rencana"><div class="section-title"><div><p class="eyebrow">SEDANG BERJALAN</p><h2>Rencana</h2></div><span class="plan-count">' + S.plans.length + '</span></div>';
-  if (!S.plans.length) h += '<div class="empty"><span class="empty-mark">—</span><p>Belum ada rencana.</p><small>Buat satu di bawah untuk mulai menyusun langkah.</small></div>';
-  h += '<div class="grid">';
+  var h = '<header class="hd"><div><h1>Perencana</h1><p class="sub">Checklist dan jadwal untuk kegiatan apa pun</p></div>' + pillHtml() + '</header><div class="grid">';
   S.plans.forEach(function (p) {
-    var q = prog(p), date = cd(p);
-    h += '<button class="card" data-a="open" data-p="' + p.id + '" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="card-top"><span class="em">' + esc(p.emoji) + '</span><span class="card-open" aria-hidden="true">↗</span></div><div class="card-main"><h3>' + esc(p.title) + '</h3><p class="card-note">' + esc(p.note || 'Simpan semua detail di satu tempat.') + '</p></div><div class="card-bottom"><div class="card-progress"><span class="card-date">' + esc(date || 'Tanpa tanggal') + '</span><span class="progress-label"><b>' + q[0] + '</b><span> / ' + q[1] + ' selesai</span></span><span class="progress-track"><i style="width:' + q[2] + '%"></i></span></div>' + ring(q[2], 52) + '</div></button>';
+    var q = prog(p);
+    h += '<button class="card" data-a="open" data-p="' + p.id + '" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="ct"><span class="em">' + esc(p.emoji) + '</span>' + ring(q[2], 58) + '</div><h2>' + esc(p.title) + '</h2><small>' + esc(cd(p) || p.note) + '</small><small>' + q[0] + ' dari ' + q[1] + ' selesai</small></button>';
   });
-  return h + '</div></section><section class="new"><div class="new-copy"><p class="eyebrow">MULAI DARI SINI</p><h2>Buat rencana baru</h2><p>Pilih template atau mulai dengan halaman kosong.</p></div><div class="new-form"><input type="text" id="nt" placeholder="Contoh: Liburan akhir tahun" aria-label="Judul rencana"><select id="tp" aria-label="Template rencana"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana <span aria-hidden="true">→</span></button></div></section>';
+  return h + '</div><div class="new"><b>Rencana baru</b><input type="text" id="nt" placeholder="Judul, misalnya Pernikahan Sari"><select id="tp"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana</button></div>';
 }
 function lists(p) {
   var h = '';
@@ -167,14 +144,14 @@ function days(p) {
 function plan(p) {
   var r = prog(p), h = '<section class="hero" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="hr"><button class="ghost" data-a="home">‹ Semua rencana</button>' + pillHtml() + '</div><div class="hm"><div><div class="em">' + esc(p.emoji) + '</div>';
   if (edit) {
-    h += '<input type="text" data-f="title" value="' + esc(p.title) + '"><input type="text" data-f="note" value="' + esc(p.note) + '" placeholder="Keterangan"><div class="row date-row" style="padding:0"><input type="date" data-f="start" value="' + esc(p.start) + '"><input type="date" data-f="end" value="' + esc(p.end) + '"></div><div class="row" style="padding:4px 0;flex-wrap:wrap"><input type="text" data-f="emoji" value="' + esc(p.emoji) + '" aria-label="Emoji rencana" style="max-width:70px;width:70px">';
-    Object.keys(COL).forEach(function (k) { h += '<button type="button" class="dot" data-a="color" data-v="' + k + '" aria-label="Pilih warna ' + k + '" title="Pilih warna ' + k + '" style="background:' + COL[k] + '"></button>'; });
+    h += '<input type="text" data-f="title" value="' + esc(p.title) + '"><input type="text" data-f="note" value="' + esc(p.note) + '" placeholder="Keterangan"><div class="row" style="padding:0"><input type="date" data-f="start" value="' + esc(p.start) + '"><input type="date" data-f="end" value="' + esc(p.end) + '"></div><div class="row" style="padding:4px 0;flex-wrap:wrap"><input type="text" data-f="emoji" value="' + esc(p.emoji) + '" style="max-width:70px;width:70px">';
+    Object.keys(COL).forEach(function (k) { h += '<span class="dot" data-a="color" data-v="' + k + '" style="background:' + COL[k] + '"></span>'; });
     h += '</div>';
   } else h += '<h1>' + esc(p.title) + '</h1><p>' + esc(p.note) + '</p>' + (cd(p) ? '<span class="chip">' + cd(p) + '</span>' : '');
   h += '</div><div id="hr">' + ring(r[2], 88) + '</div></div><div class="st" id="st">' + r[0] + ' dari ' + r[1] + ' selesai</div></section>';
   h += tab === 'c' ? lists(p) : days(p);
   if (edit) h += '<button class="btn dng" data-a="delplan" style="margin-top:18px;width:100%">' + (sure ? 'Ketuk lagi untuk menghapus permanen' : 'Hapus rencana ini') + '</button>';
-  h += '<nav class="nav" aria-label="Navigasi rencana"><div><button class="btn ' + (tab === 'c' ? 'on' : '') + '" aria-pressed="' + (tab === 'c') + '" data-a="tab" data-v="c">Checklist</button><button class="btn ' + (tab === 'j' ? 'on' : '') + '" aria-pressed="' + (tab === 'j') + '" data-a="tab" data-v="j">Jadwal</button><button class="btn ' + (edit ? 'pri' : '') + '" aria-pressed="' + edit + '" data-a="edit">' + (edit ? 'Selesai' : 'Ubah') + '</button></div></nav>';
+  h += '<nav class="nav"><div><button class="btn ' + (tab === 'c' ? 'on' : '') + '" data-a="tab" data-v="c"><span>✅</span>Checklist</button><button class="btn ' + (tab === 'j' ? 'on' : '') + '" data-a="tab" data-v="j"><span>🗓️</span>Jadwal</button><button class="btn ' + (edit ? 'pri' : '') + '" data-a="edit"><span>' + (edit ? '✔️' : '✏️') + '</span>' + (edit ? 'Selesai' : 'Ubah') + '</button></div></nav>';
   return h;
 }
 function render() { var p = cur && P(); if (cur && !p) cur = null; app.innerHTML = p ? plan(p) : home(); }
@@ -185,7 +162,10 @@ function upd() {
 function snack(m, f) { undo = f || null; $('#snt').textContent = m; $('#sn button').style.display = f ? '' : 'none'; $('#sn').style.display = 'flex'; clearTimeout(snT); snT = setTimeout(function () { $('#sn').style.display = 'none'; undo = null; }, 6000); }
 function sheet() {
   var el = $('#sheet'); if (!panel) { el.innerHTML = ''; return; }
-  var h = '<div class="sheet" data-a="close"><div class="box"><h2>Sinkronisasi</h2><p>Status: <b>' + LBL[st] + '</b>' + (st === 'err' ? ' · ' + esc(serr) : '') + '</p><p>Data bersama dibaca dari <code>data.json</code> di GitHub. Perubahan disimpan ke repo, lalu bisa dibaca semua perangkat.</p><p>Masukkan kata sandi yang sama dengan nilai <code>SYNC_PASSWORD</code> di pengaturan Vercel:</p><form id="sync-form" autocomplete="on"><div class="row"><input type="password" name="syncpw" autocomplete="current-password" placeholder="' + (syncPassword ? 'Kata sandi tersimpan di perangkat ini' : 'Kata sandi sinkronisasi') + '"><button class="btn pri" type="submit">Simpan &amp; sinkron</button></div></form><p>Kata sandi hanya disimpan di perangkat ini, bukan di <code>config.js</code>.</p><div class="tools"><button class="btn" data-a="sync">Sinkron sekarang</button></div>';
+  var h = '<div class="sheet" data-a="close"><div class="box"><h2>Sinkronisasi</h2><p>Status: <b>' + LBL[st] + '</b>' + (st === 'err' ? ' · ' + esc(serr) : '') + '</p>';
+  if (BIN) {
+    h += '<p>Semua perangkat memakai satu data JSON bersama. Agar perangkat lain otomatis memakainya tanpa langkah apa pun, isi BIN_ID di <code>config.js</code> lalu deploy ulang:</p><div class="code">window.CONFIG = { BIN_ID: "' + esc(BIN) + '", SECRET: "' + esc(C.SECRET) + '" };</div><div class="tools"><button class="btn" data-a="copy">Salin baris ini</button><button class="btn" data-a="sync">Sinkron sekarang</button></div><p>Sebelum deploy ulang, perangkat lain bisa langsung memakai tautan ini (dibuka sekali):</p><div class="code">' + esc(location.origin + location.pathname + '#bin=' + BIN) + '</div>';
+  } else h += '<p>Penyimpanan bersama belum dibuat. Buat sekali, lalu salin ID-nya ke <code>config.js</code>.</p><button class="btn pri" data-a="mk">Buat penyimpanan bersama</button>';
   if (msg) h += '<div class="m">' + esc(msg) + '</div>';
   h += '<div class="tools"><button class="btn" data-a="exp">Ekspor JSON</button><button class="btn" data-a="imp">Impor JSON</button></div><button class="btn" data-a="close">Tutup</button></div></div>';
   el.innerHTML = h;
@@ -196,13 +176,6 @@ function rm(arr, id, m, p) {
   var k = arr.findIndex(function (x) { return x.id === id; }), o = arr.splice(k, 1)[0];
   touch(p); snack(m, function () { arr.splice(k, 0, o); touch(p); render(); }); render();
 }
-document.addEventListener('submit', function (e) {
-  if (e.target.id !== 'sync-form') return;
-  e.preventDefault();
-  var pw = e.target.querySelector('[name="syncpw"]').value;
-  if (!pw.trim()) { msg = 'Masukkan kata sandi sinkronisasi.'; return sheet(); }
-  syncPassword = pw; localStorage.setItem(PW, syncPassword); msg = 'Kata sandi tersimpan di perangkat ini.'; sheet(); sync();
-});
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-a]'); if (!b) return;
   var a = b.dataset.a, d = b.dataset, p = cur && P();
@@ -210,8 +183,16 @@ document.addEventListener('click', function (e) {
   if (a === 'panel') { panel = true; return sheet(); }
   if (a === 'undo') { if (undo) { undo(); undo = null; $('#sn').style.display = 'none'; } return; }
   if (a === 'sync') { return sync(); }
+  if (a === 'copy') { var t = 'window.CONFIG = { BIN_ID: "' + BIN + '", SECRET: "' + C.SECRET + '" };'; if (navigator.clipboard) navigator.clipboard.writeText(t); msg = 'Disalin'; return sheet(); }
   if (a === 'exp') { var l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' })); l.download = 'perencana-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); return; }
   if (a === 'imp') { return $('#file').click(); }
+  if (a === 'mk') {
+    msg = 'Membuat penyimpanan…'; sheet();
+    seal(S).then(function (box) { return req(C.API, { method: 'POST', body: JSON.stringify(box) }); }).then(function (r) {
+      if (!r || !r.id) throw new Error('ID tidak diterima'); BIN = r.id; localStorage.setItem(LB, BIN); msg = 'Penyimpanan dibuat. Salin baris config.js di atas.'; sheet(); sync();
+    }).catch(function (er) { msg = 'Gagal membuat penyimpanan: ' + (er.message || er); sheet(); });
+    return;
+  }
   if (a === 'open') { cur = d.p; tab = 'c'; edit = false; sure = false; }
   else if (a === 'home') { cur = null; edit = false; }
   else if (a === 'newplan') {
@@ -273,10 +254,13 @@ setInterval(again, 20000); document.addEventListener('visibilitychange', again);
 
 /* ---------- mulai ---------- */
 (async function boot() {
+  var m = location.hash.match(/#bin=([\w-]+)/);
+  if (m) { localStorage.setItem(LB, m[1]); BIN = C.BIN_ID || m[1]; history.replaceState(null, '', location.pathname + location.search); }
   var d = null; try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   var cached = d && Array.isArray(d.plans);
   if (!cached) { try { d = await (await fetch('data.json', { cache: 'no-store' })).json(); } catch (e) { d = { plans: [] }; } }
   S = { plans: d.plans.map(norm), del: d.del || {} };
-  render(); sync();
+  if (!cached && BIN) { app.innerHTML = '<p class="sub" style="margin-top:40vh;text-align:center">Menyinkronkan…</p>'; await sync(); }
+  render(); if (cached) sync();
 })();
 })();
