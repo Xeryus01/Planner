@@ -1,15 +1,24 @@
-# Perencana (HTML + JavaScript murni)
+# Perencana
 
-Tanpa framework, tanpa build, tanpa server sendiri. File: `index.html`, `app.js`, `style.css`, `config.js`, `data.json`.
+Aplikasi HTML, CSS, dan JavaScript tanpa framework. Di Vercel, API serverless membaca dan menyimpan data bersama ke file `data.json` di repository GitHub. Semua perangkat yang membuka aplikasi memakai file yang sama.
 
-## Deploy
-Upload folder ke host statis apa pun (Vercel: import folder, framework "Other", tanpa build command).
+## Deploy ke Vercel
 
-## Satu data JSON untuk semua perangkat
-- `data.json` = data awal (Liburan Malaysia). Dipakai hanya saat penyimpanan masih kosong.
-- Data hidup disimpan sebagai satu dokumen JSON di layanan json.extendsclass.com. Semua perangkat membaca dan menulis dokumen yang sama, jadi isinya selalu sama.
-- Langkah sekali saja: buka aplikasi, ketuk status di pojok kanan atas, **Buat penyimpanan bersama**. Salin baris `window.CONFIG = {...}` ke `config.js`, deploy ulang. Setelahnya setiap perangkat yang membuka aplikasi langsung memakai data yang sama, tanpa langkah apa pun.
-- Sampai deploy ulang, perangkat lain bisa memakai tautan `…/#bin=ID` (dibuka sekali).
-- Aplikasi membaca data terbaru saat dibuka, lalu sinkron tiap ada perubahan, tiap 20 detik, dan saat kembali aktif. Tetap jalan offline (cache di perangkat) dan menggabungkan perubahan saat online lagi.
-- Data dienkripsi dengan `SECRET` di `config.js` sebelum disimpan. Ganti `SECRET` sebelum membuat penyimpanan, dan jangan ubah lagi sesudahnya. Karena `config.js` publik, ini melindungi isi dokumen dari yang hanya menemukan alamat dokumennya, bukan dari yang membaca kode situs. Jangan bagikan URL aplikasi.
-- Layanan penyimpanan publik: maks. 100 KB, bisa menghapus data yang lama tidak dipakai. Gunakan Ekspor JSON untuk cadangan.
+1. Pastikan project Vercel terhubung ke repository GitHub ini dan branch yang dipakai adalah `main`.
+2. Buat GitHub fine-grained personal access token untuk repository ini dengan izin **Contents: Read and write**. Jangan masukkan token ke file project.
+3. Di Vercel, buka **Project → Settings → Environment Variables** dan tambahkan:
+   - `GITHUB_TOKEN`: token dari langkah 2.
+   - `SYNC_PASSWORD`: kata sandi panjang dan acak yang akan dibagikan hanya ke perangkat tepercaya.
+4. Jika deploy dari fork, atur juga `GITHUB_OWNER`, `GITHUB_REPO`, dan `GITHUB_BRANCH` sesuai repository dan branch. Nilai default: `Xeryus01`, `Planner`, `main`.
+5. Redeploy project. Pastikan Vercel menyertakan folder `api/` sebagai Functions.
+6. Di tiap perangkat, buka status sinkronisasi di aplikasi, masukkan nilai `SYNC_PASSWORD`, lalu pilih **Simpan & sinkron**. Kata sandi disimpan di browser perangkat itu saja.
+
+Setiap perubahan tersimpan sebagai commit pada `data.json`. Aplikasi membaca ulang file GitHub secara berkala dan saat perangkat kembali aktif. Perangkat tanpa koneksi tetap memakai cache lokal sampai dapat tersambung lagi.
+
+## File dan keamanan
+
+- `data.json` adalah sumber data bersama. File awal berisi rencana contoh.
+- `api/data.js` adalah Vercel Function. Token GitHub dan kata sandi sinkronisasi hanya dibaca dari environment variable server.
+- `config.js` berisi `SECRET` untuk mengenkripsi data sebelum dikirim ke API. Jangan mengubahnya setelah data tersimpan, karena data lama tidak akan bisa dibuka.
+- Endpoint baca data dapat diakses publik. Endpoint tulis memerlukan `SYNC_PASSWORD`; siapa pun yang memilikinya dapat mengubah file dan membuat commit ke repository. Jangan bagikan kata sandi itu secara publik.
+- Karena `config.js` dikirim ke browser, `SECRET` bukan tempat menyimpan token atau kata sandi rahasia. Ekspor JSON tetap disarankan sebagai cadangan.

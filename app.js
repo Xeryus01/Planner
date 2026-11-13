@@ -1,7 +1,7 @@
 (function () {
 'use strict';
-var C = Object.assign({ BIN_ID: '', SECRET: '', API: 'https://json.extendsclass.com/bin' }, window.CONFIG || {});
-var KEY = 'perencana:v2', LB = 'perencana:bin';
+var C = Object.assign({ SECRET: '' }, window.CONFIG || {});
+var KEY = 'perencana:v2', PW = 'perencana:sync-password', API = '/api/data';
 var $ = function (s) { return document.querySelector(s); }, app = $('#app');
 var COL = { teal: '#0e7c86', indigo: '#4f46e5', amber: '#c77d00', rose: '#d6336c', green: '#2f9e44' };
 var TPL = {
@@ -12,7 +12,7 @@ var TPL = {
 };
 var LBL = { off: 'Lokal', busy: 'Menyinkronkan…', ok: 'Tersinkron', err: 'Gagal sinkron' };
 var S = { plans: [], del: {} }, cur = null, tab = 'c', edit = false, st = 'off', serr = '', undo = null, sure = false, msg = '', panel = false, timer = null, snT = null, sT = null;
-var BIN = C.BIN_ID || localStorage.getItem(LB) || '';
+var syncPassword = localStorage.getItem(PW) || '';
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -59,8 +59,14 @@ async function open(b) {
   return b.plans ? b : null;
 }
 async function req(url, o) {
-  var r = await fetch(url, Object.assign({ cache: 'no-store', headers: { 'Content-Type': 'application/json' } }, o));
-  if (!r.ok) throw new Error('http ' + r.status);
+  var options = Object.assign({ cache: 'no-store', headers: { 'Content-Type': 'application/json' } }, o);
+  if (options.method === 'PUT' && syncPassword) options.headers.Authorization = 'Bearer ' + syncPassword;
+  var r = await fetch(url, options);
+  if (!r.ok) {
+    var detail = '';
+    try { var body = await r.json(); detail = body.message || ''; } catch (e) {}
+    throw new Error('http ' + r.status + (detail ? ': ' + detail : ''));
+  }
   return r.json();
 }
 function merge(a, b) {
@@ -76,17 +82,31 @@ function sig(d) { return JSON.stringify([(d.plans || []).map(function (p) { retu
 function saveLocal() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 function pill() { document.querySelectorAll('.pill').forEach(function (e) { e.className = 'pill ' + st; e.textContent = LBL[st]; }); if (panel) sheet(); }
 async function sync() {
-  if (!BIN) { st = 'off'; pill(); return; }
   st = 'busy'; pill();
   try {
-    var rem = null;
-    try { rem = await open(await req(C.API + '/' + BIN)); }
-    catch (e) { if (e.name === 'OperationError') throw new Error('SECRET di config.js tidak cocok dengan yang dipakai saat data dibuat'); throw e; }
-    var m = merge(S, rem || { plans: [], del: {} });
-    if (sig(m) !== sig(S)) { S = m; saveLocal(); var a = document.activeElement; if (!(a && /INPUT|SELECT/.test(a.tagName))) render(); }
-    if (!rem || sig(m) !== sig(rem)) await req(C.API + '/' + BIN, { method: 'PUT', body: JSON.stringify(await seal(m)) });
-    st = 'ok'; serr = '';
-  } catch (e) { st = 'err'; serr = e.message || String(e); }
+    for (var attempt = 0; attempt < 3; attempt++) {
+      var rem = null;
+      try { rem = await open(await req(API)); }
+      catch (e) {
+        if (e.name === 'OperationError') throw new Error('SECRET di config.js tidak cocok dengan data di GitHub');
+        throw e;
+      }
+      var m = merge(S, rem || { plans: [], del: {} });
+      if (sig(m) !== sig(S)) { S = m; saveLocal(); var a = document.activeElement; if (!(a && /INPUT|SELECT/.test(a.tagName))) render(); }
+      if (!rem || sig(m) !== sig(rem)) {
+        try { await req(API, { method: 'PUT', body: JSON.stringify(await seal(m)) }); }
+        catch (e) { if (e.message.indexOf('http 409') === 0 && attempt < 2) continue; throw e; }
+      }
+      st = 'ok'; serr = '';
+      break;
+    }
+  } catch (e) {
+    st = 'err';
+    var errorMessage = e.message || String(e);
+    if (errorMessage.indexOf('http 401') === 0) serr = 'Kata sandi sinkronisasi salah atau belum diatur pada perangkat ini.';
+    else if (errorMessage.indexOf('GITHUB_TOKEN is not configured') !== -1) serr = 'GITHUB_TOKEN belum tersedia pada deployment Vercel. Atur untuk Production lalu redeploy.';
+    else serr = errorMessage;
+  }
   pill();
 }
 function later() { clearTimeout(sT); sT = setTimeout(sync, 1200); }
@@ -162,10 +182,7 @@ function upd() {
 function snack(m, f) { undo = f || null; $('#snt').textContent = m; $('#sn button').style.display = f ? '' : 'none'; $('#sn').style.display = 'flex'; clearTimeout(snT); snT = setTimeout(function () { $('#sn').style.display = 'none'; undo = null; }, 6000); }
 function sheet() {
   var el = $('#sheet'); if (!panel) { el.innerHTML = ''; return; }
-  var h = '<div class="sheet" data-a="close"><div class="box"><h2>Sinkronisasi</h2><p>Status: <b>' + LBL[st] + '</b>' + (st === 'err' ? ' · ' + esc(serr) : '') + '</p>';
-  if (BIN) {
-    h += '<p>Semua perangkat memakai satu data JSON bersama. Agar perangkat lain otomatis memakainya tanpa langkah apa pun, isi BIN_ID di <code>config.js</code> lalu deploy ulang:</p><div class="code">window.CONFIG = { BIN_ID: "' + esc(BIN) + '", SECRET: "' + esc(C.SECRET) + '" };</div><div class="tools"><button class="btn" data-a="copy">Salin baris ini</button><button class="btn" data-a="sync">Sinkron sekarang</button></div><p>Sebelum deploy ulang, perangkat lain bisa langsung memakai tautan ini (dibuka sekali):</p><div class="code">' + esc(location.origin + location.pathname + '#bin=' + BIN) + '</div>';
-  } else h += '<p>Penyimpanan bersama belum dibuat. Buat sekali, lalu salin ID-nya ke <code>config.js</code>.</p><button class="btn pri" data-a="mk">Buat penyimpanan bersama</button>';
+  var h = '<div class="sheet" data-a="close"><div class="box"><h2>Sinkronisasi</h2><p>Status: <b>' + LBL[st] + '</b>' + (st === 'err' ? ' · ' + esc(serr) : '') + '</p><p>Data bersama dibaca dari <code>data.json</code> di GitHub. Perubahan disimpan ke repo, lalu bisa dibaca semua perangkat.</p><p>Masukkan kata sandi yang sama dengan nilai <code>SYNC_PASSWORD</code> di pengaturan Vercel:</p><form id="sync-form" autocomplete="on"><div class="row"><input type="password" name="syncpw" autocomplete="current-password" placeholder="' + (syncPassword ? 'Kata sandi tersimpan di perangkat ini' : 'Kata sandi sinkronisasi') + '"><button class="btn pri" type="submit">Simpan &amp; sinkron</button></div></form><p>Kata sandi hanya disimpan di perangkat ini, bukan di <code>config.js</code>.</p><div class="tools"><button class="btn" data-a="sync">Sinkron sekarang</button></div>';
   if (msg) h += '<div class="m">' + esc(msg) + '</div>';
   h += '<div class="tools"><button class="btn" data-a="exp">Ekspor JSON</button><button class="btn" data-a="imp">Impor JSON</button></div><button class="btn" data-a="close">Tutup</button></div></div>';
   el.innerHTML = h;
@@ -176,6 +193,13 @@ function rm(arr, id, m, p) {
   var k = arr.findIndex(function (x) { return x.id === id; }), o = arr.splice(k, 1)[0];
   touch(p); snack(m, function () { arr.splice(k, 0, o); touch(p); render(); }); render();
 }
+document.addEventListener('submit', function (e) {
+  if (e.target.id !== 'sync-form') return;
+  e.preventDefault();
+  var pw = e.target.querySelector('[name="syncpw"]').value;
+  if (!pw.trim()) { msg = 'Masukkan kata sandi sinkronisasi.'; return sheet(); }
+  syncPassword = pw; localStorage.setItem(PW, syncPassword); msg = 'Kata sandi tersimpan di perangkat ini.'; sheet(); sync();
+});
 document.addEventListener('click', function (e) {
   var b = e.target.closest('[data-a]'); if (!b) return;
   var a = b.dataset.a, d = b.dataset, p = cur && P();
@@ -183,16 +207,8 @@ document.addEventListener('click', function (e) {
   if (a === 'panel') { panel = true; return sheet(); }
   if (a === 'undo') { if (undo) { undo(); undo = null; $('#sn').style.display = 'none'; } return; }
   if (a === 'sync') { return sync(); }
-  if (a === 'copy') { var t = 'window.CONFIG = { BIN_ID: "' + BIN + '", SECRET: "' + C.SECRET + '" };'; if (navigator.clipboard) navigator.clipboard.writeText(t); msg = 'Disalin'; return sheet(); }
   if (a === 'exp') { var l = document.createElement('a'); l.href = URL.createObjectURL(new Blob([JSON.stringify(S, null, 2)], { type: 'application/json' })); l.download = 'perencana-' + new Date().toISOString().slice(0, 10) + '.json'; l.click(); return; }
   if (a === 'imp') { return $('#file').click(); }
-  if (a === 'mk') {
-    msg = 'Membuat penyimpanan…'; sheet();
-    seal(S).then(function (box) { return req(C.API, { method: 'POST', body: JSON.stringify(box) }); }).then(function (r) {
-      if (!r || !r.id) throw new Error('ID tidak diterima'); BIN = r.id; localStorage.setItem(LB, BIN); msg = 'Penyimpanan dibuat. Salin baris config.js di atas.'; sheet(); sync();
-    }).catch(function (er) { msg = 'Gagal membuat penyimpanan: ' + (er.message || er); sheet(); });
-    return;
-  }
   if (a === 'open') { cur = d.p; tab = 'c'; edit = false; sure = false; }
   else if (a === 'home') { cur = null; edit = false; }
   else if (a === 'newplan') {
@@ -254,13 +270,10 @@ setInterval(again, 20000); document.addEventListener('visibilitychange', again);
 
 /* ---------- mulai ---------- */
 (async function boot() {
-  var m = location.hash.match(/#bin=([\w-]+)/);
-  if (m) { localStorage.setItem(LB, m[1]); BIN = C.BIN_ID || m[1]; history.replaceState(null, '', location.pathname + location.search); }
   var d = null; try { d = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
   var cached = d && Array.isArray(d.plans);
   if (!cached) { try { d = await (await fetch('data.json', { cache: 'no-store' })).json(); } catch (e) { d = { plans: [] }; } }
   S = { plans: d.plans.map(norm), del: d.del || {} };
-  if (!cached && BIN) { app.innerHTML = '<p class="sub" style="margin-top:40vh;text-align:center">Menyinkronkan…</p>'; await sync(); }
-  render(); if (cached) sync();
+  render(); sync();
 })();
 })();
