@@ -801,3 +801,27 @@ input[type=checkbox]:checked::after { width: 5px; height: 9px; margin: 3px 0 0 7
   .grid.tiles .card-main h3 { font-size: 14px; }
   .grid.tiles .card-bottom { padding: 4px 9px 8px; }
 }
+.home-plan[draggable="true"] { cursor: grab; }
+.home-plan.dragging { cursor: grabbing; opacity: .48; }
+.home-plan.drop-target { outline: 2px dashed var(--accent); outline-offset: 3px; }
+.home-plan .drag-hint {
+  position: absolute;
+  z-index: 2;
+  top: 10px;
+  left: 50%;
+  display: grid;
+  width: 25px;
+  height: 25px;
+  transform: translateX(-50%);
+  place-items: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--on, #fff) 18%, transparent);
+  color: var(--on, #fff);
+  font-size: 18px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.feat .drag-hint { top: 10px; right: 10px; left: auto; transform: none; }
+.home-plan.dragging .drag-hint { cursor: grabbing; }

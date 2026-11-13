@@ -17,6 +17,7 @@ var LBL = { off: 'Lokal', busy: 'Menyinkronkan…', ok: 'Tersinkron', err: 'Gaga
 var S = { plans: [], del: {} }, cur = null, tab = 'c', edit = false, st = 'off', serr = '', undo = null, sure = false, msg = '', panel = false, timer = null, snT = null, sT = null;
 var syncPassword = localStorage.getItem(PW) || '';
 var hideDone = false, lastFocus = null, gotoTop = false, booting = true;
+var planDrag = null, touchPlanDrag = null, suppressCardClick = false;
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
@@ -150,17 +151,44 @@ function applyTheme(p) {
 function remaining() { var n = 0; S.plans.forEach(function (p) { var q = prog(p); n += q[1] - q[0]; }); return n; }
 function featured() {
   var t = new Date(); t.setHours(0, 0, 0, 0); var best = null;
+  if (S.plans.some(function (p) { return p.orderManual; })) {
+    var first = S.plans[0];
+    return first && first.start && new Date(first.end || first.start) >= t ? first : null;
+  }
   S.plans.forEach(function (p) { if (!p.start) return; if (new Date(p.end || p.start) < t) return; if (!best || p.start < best.start) best = p; });
   return best;
 }
-function cardHtml(p, q) {
-  return '<button class="card" data-a="open" data-p="' + p.id + '" data-style="' + esc(p.style || 'gradient') + '" style="' + cover(p) + '"><div class="cover"><span class="em">' + esc(p.emoji) + '</span><span class="cd">' + esc(cd(p) || 'Tanpa tanggal') + '</span><div class="cring">' + ring(q[2], 56) + '</div></div><div class="card-main"><h3>' + esc(p.title) + '</h3>' + (p.note ? '<p class="card-note">' + esc(p.note) + '</p>' : '') + (nextItem(p) ? '<p class="card-next"><span>Berikutnya</span>' + esc(nextItem(p)) + '</p>' : (q[1] ? '<p class="card-next done"><span>Semua langkah selesai</span></p>' : '')) + '</div><div class="card-bottom"><span class="progress-label"><b>' + q[0] + '</b><span> dari ' + q[1] + ' selesai</span></span><span class="progress-track"><i style="width:' + q[2] + '%"></i></span></div></button>';
+function visiblePlanOrder() {
+  var pinned = featured();
+  return pinned ? [pinned].concat(S.plans.filter(function (p) { return p !== pinned; })) : S.plans.slice();
 }
-function featHtml(p) {
+function reorderPlan(fromId, toId, after) {
+  var original = visiblePlanOrder(), ordered = original.slice();
+  var from = ordered.findIndex(function (p) { return p.id === fromId; });
+  var target = ordered.find(function (p) { return p.id === toId; });
+  if (from < 0 || !target || fromId === toId) return;
+  var moved = ordered.splice(from, 1)[0], targetIndex = ordered.indexOf(target);
+  ordered.splice(targetIndex + (after ? 1 : 0), 0, moved);
+  if (ordered.every(function (p, i) { return p === original[i]; })) return;
+  var stamp = Date.now();
+  S.plans.forEach(function (p) { stamp = Math.max(stamp, (Number(p.u) || 0) + 1); });
+  ordered.forEach(function (p, i) { p.ord = i; p.u = stamp; p.orderManual = true; });
+  S.plans = ordered;
+  saveLocal(); later(); render();
+  var card = document.querySelector('.home-plan[data-p="' + fromId + '"]');
+  if (card && document.activeElement === document.body) card.focus();
+  snack('Urutan rencana diperbarui');
+}
+function cardHtml(p, q, reorderable) {
+  var drag = reorderable ? ' draggable="true" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" aria-description="Seret untuk mengubah urutan. Gunakan Alt dan tombol panah atas atau bawah saat kartu fokus."' : '';
+  return '<button class="home-plan card"' + drag + ' data-a="open" data-p="' + p.id + '" data-style="' + esc(p.style || 'gradient') + '" style="' + cover(p) + '"><div class="cover"><span class="em">' + esc(p.emoji) + '</span>' + (reorderable ? '<span class="drag-hint" aria-hidden="true">⠿</span>' : '') + '<span class="cd">' + esc(cd(p) || 'Tanpa tanggal') + '</span><div class="cring">' + ring(q[2], 56) + '</div></div><div class="card-main"><h3>' + esc(p.title) + '</h3>' + (p.note ? '<p class="card-note">' + esc(p.note) + '</p>' : '') + (nextItem(p) ? '<p class="card-next"><span>Berikutnya</span>' + esc(nextItem(p)) + '</p>' : (q[1] ? '<p class="card-next done"><span>Semua langkah selesai</span></p>' : '')) + '</div><div class="card-bottom"><span class="progress-label"><b>' + q[0] + '</b><span> dari ' + q[1] + ' selesai</span></span><span class="progress-track"><i style="width:' + q[2] + '%"></i></span></div></button>';
+}
+function featHtml(p, reorderable) {
   var q = prog(p), t = new Date(); t.setHours(0, 0, 0, 0);
   var n = Math.round((new Date(p.start) - t) / 864e5), big, unit;
   if (n > 0) { big = n; unit = 'hari lagi'; } else if (n === 0) { big = 'Hari'; unit = 'ini'; } else { big = n * -1 + 1; unit = 'hari berjalan'; }
-  return '<button class="feat" data-a="open" data-p="' + p.id + '" data-style="' + esc(p.style || 'gradient') + '" style="' + cover(p) + '"><div class="fl"><span class="fnum">' + big + '</span><span class="funit">' + unit + '</span></div><div class="fr"><span class="em">' + esc(p.emoji) + '</span><h2>' + esc(p.title) + '</h2>' + (p.note ? '<p>' + esc(p.note) + '</p>' : '') + '<p class="fprog">' + q[0] + ' dari ' + q[1] + ' selesai</p></div><div class="cring">' + ring(q[2], 64) + '</div></button>';
+  var drag = reorderable ? ' draggable="true" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" aria-description="Seret untuk mengubah urutan. Gunakan Alt dan tombol panah atas atau bawah saat kartu fokus."' : '';
+  return '<button class="home-plan feat"' + drag + ' data-a="open" data-p="' + p.id + '" data-style="' + esc(p.style || 'gradient') + '" style="' + cover(p) + '"><div class="fl"><span class="fnum">' + big + '</span><span class="funit">' + unit + '</span></div><div class="fr"><span class="em">' + esc(p.emoji) + '</span><h2>' + esc(p.title) + '</h2>' + (p.note ? '<p>' + esc(p.note) + '</p>' : '') + '<p class="fprog">' + q[0] + ' dari ' + q[1] + ' selesai</p></div><div class="cring">' + ring(q[2], 64) + '</div>' + (reorderable ? '<span class="drag-hint" aria-hidden="true">⠿</span>' : '') + '</button>';
 }
 function styler(p) {
   var c = col(p), isKey = Object.keys(COL).some(function (k) { return COL[k] === c; });
@@ -188,7 +216,7 @@ function Yx(p, id) { return p.days.filter(function (s) { return s.id === id; })[
 function pillHtml() { return '<button class="pill ' + st + '" data-a="panel">' + LBL[st] + '</button>'; }
 function home() {
   var h = '<header class="home-head"><div class="home-top"><a class="wordmark" href="./" aria-label="Perencana"><span class="brand-mark">P</span><span>Perencana</span></a>' + pillHtml() + '</div><div class="home-intro"><h1>Rencana Anda<span>.</span></h1><p class="sub">Satu tempat untuk hal-hal yang ingin Anda tuntaskan.</p><div class="stats"><span><b>' + S.plans.length + '</b> rencana</span><span><b>' + remaining() + '</b> langkah tersisa</span></div></div></header>';
-  var ft = featured(); if (ft) h += featHtml(ft);
+  var ft = featured(); if (ft) h += featHtml(ft, S.plans.length > 1);
   h += '<section class="plans"' + (ft && S.plans.length < 2 ? ' hidden' : '') + ' aria-label="Daftar rencana"><div class="section-title"><h2>' + (ft ? 'Rencana lainnya' : 'Daftar rencana') + '</h2><span class="plan-count">' + (S.plans.length - (ft ? 1 : 0)) + '</span></div>';
   if (booting && !S.plans.length) h += '<p class="loading" role="status">Memuat rencana…</p>'; else if (!S.plans.length) h += '<div class="empty"><span class="empty-mark">—</span><p>Belum ada rencana.</p><small>Buat satu di bawah untuk mulai menyusun langkah.</small></div>';
   var cards = S.plans.length - (ft ? 1 : 0);
@@ -196,7 +224,7 @@ function home() {
   S.plans.forEach(function (p) {
     if (p === ft) return;
     var q = prog(p);
-    h += cardHtml(p, q);
+    h += cardHtml(p, q, S.plans.length > 1);
   });
   return h + '</div></section><section class="new"><div class="new-copy"><h2>Buat rencana baru</h2><p>Pilih template atau mulai dengan halaman kosong.</p></div><div class="new-form"><input type="text" id="nt" placeholder="Contoh: Liburan akhir tahun" aria-label="Judul rencana"><select id="tp" aria-label="Template rencana"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana</button></div></section>';
 }
@@ -281,6 +309,105 @@ document.addEventListener('keydown', function (e) {
     var btn = t.id === 'nt' ? document.querySelector('[data-a="newplan"]') : (/^(a|t|ns)/.test(t.id) && t.nextElementSibling && t.nextElementSibling.tagName === 'BUTTON' ? t.nextElementSibling : null);
     if (btn) { e.preventDefault(); btn.click(); }
   }
+});
+
+function clearPlanDropTargets() {
+  document.querySelectorAll('.home-plan.drop-target').forEach(function (card) { card.classList.remove('drop-target'); });
+}
+function suppressNextCardClick() {
+  suppressCardClick = true;
+  setTimeout(function () { suppressCardClick = false; }, 0);
+}
+document.addEventListener('click', function (e) {
+  if (!suppressCardClick) return;
+  var card = e.target.closest && e.target.closest('.home-plan');
+  if (card) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+document.addEventListener('dragstart', function (e) {
+  var card = e.target.closest && e.target.closest('.home-plan[draggable="true"]');
+  if (!card) return;
+  planDrag = { id: card.dataset.p, targetId: null, after: false };
+  card.classList.add('dragging');
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.dataset.p); }
+});
+document.addEventListener('dragover', function (e) {
+  var card = e.target.closest && e.target.closest('.home-plan[draggable="true"]');
+  if (!planDrag || !card || card.dataset.p === planDrag.id) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  clearPlanDropTargets();
+  card.classList.add('drop-target');
+  var rect = card.getBoundingClientRect();
+  planDrag.targetId = card.dataset.p;
+  planDrag.after = e.clientY > rect.top + rect.height / 2;
+});
+document.addEventListener('drop', function (e) {
+  var card = e.target.closest && e.target.closest('.home-plan[draggable="true"]');
+  if (!planDrag || !card || card.dataset.p === planDrag.id) return;
+  e.preventDefault();
+  var drag = planDrag, rect = card.getBoundingClientRect();
+  drag.after = e.clientY > rect.top + rect.height / 2;
+  planDrag = null;
+  clearPlanDropTargets();
+  suppressNextCardClick();
+  reorderPlan(drag.id, card.dataset.p, drag.after);
+});
+document.addEventListener('dragend', function () {
+  planDrag = null;
+  clearPlanDropTargets();
+  document.querySelectorAll('.home-plan.dragging').forEach(function (card) { card.classList.remove('dragging'); });
+  suppressNextCardClick();
+});
+document.addEventListener('pointerdown', function (e) {
+  if (e.pointerType === 'mouse' || e.button !== 0) return;
+  var handle = e.target.closest && e.target.closest('.drag-hint');
+  var card = handle && handle.closest('.home-plan[draggable="true"]');
+  if (!card) return;
+  e.preventDefault();
+  touchPlanDrag = { id: card.dataset.p, card: card, pointerId: e.pointerId, x: e.clientX, y: e.clientY, dragging: false, targetId: null, after: false };
+  if (card.setPointerCapture) card.setPointerCapture(e.pointerId);
+});
+document.addEventListener('pointermove', function (e) {
+  var drag = touchPlanDrag;
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  if (!drag.dragging && Math.max(Math.abs(e.clientX - drag.x), Math.abs(e.clientY - drag.y)) < 8) return;
+  drag.dragging = true;
+  e.preventDefault();
+  drag.card.classList.add('dragging');
+  var target = document.elementFromPoint(e.clientX, e.clientY);
+  target = target && target.closest('.home-plan[draggable="true"]');
+  clearPlanDropTargets();
+  if (!target || target.dataset.p === drag.id) { drag.targetId = null; return; }
+  target.classList.add('drop-target');
+  var rect = target.getBoundingClientRect();
+  drag.targetId = target.dataset.p;
+  drag.after = e.clientY > rect.top + rect.height / 2;
+});
+document.addEventListener('pointerup', function (e) {
+  var drag = touchPlanDrag;
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  touchPlanDrag = null;
+  clearPlanDropTargets();
+  drag.card.classList.remove('dragging');
+  if (drag.dragging) {
+    suppressNextCardClick();
+    if (drag.targetId) reorderPlan(drag.id, drag.targetId, drag.after);
+  }
+});
+document.addEventListener('pointercancel', function () {
+  if (!touchPlanDrag) return;
+  touchPlanDrag.card.classList.remove('dragging');
+  touchPlanDrag = null;
+  clearPlanDropTargets();
+});
+document.addEventListener('keydown', function (e) {
+  if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  var card = e.target.closest && e.target.closest('.home-plan[draggable="true"]');
+  if (!card) return;
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.home-plan[draggable="true"]'));
+  var index = cards.indexOf(card), direction = e.key === 'ArrowUp' ? -1 : 1, target = cards[index + direction];
+  e.preventDefault();
+  if (target) reorderPlan(card.dataset.p, target.dataset.p, direction > 0);
 });
 
 /* ---------- aksi ---------- */
