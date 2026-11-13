@@ -191,7 +191,8 @@ function home() {
   var ft = featured(); if (ft) h += featHtml(ft);
   h += '<section class="plans"' + (ft && S.plans.length < 2 ? ' hidden' : '') + ' aria-label="Daftar rencana"><div class="section-title"><h2>' + (ft ? 'Rencana lainnya' : 'Daftar rencana') + '</h2><span class="plan-count">' + (S.plans.length - (ft ? 1 : 0)) + '</span></div>';
   if (booting && !S.plans.length) h += '<p class="loading" role="status">Memuat rencana…</p>'; else if (!S.plans.length) h += '<div class="empty"><span class="empty-mark">—</span><p>Belum ada rencana.</p><small>Buat satu di bawah untuk mulai menyusun langkah.</small></div>';
-  h += '<div class="grid">';
+  var cards = S.plans.length - (ft ? 1 : 0);
+  h += '<div class="grid' + (cards > 1 ? ' tiles' : '') + '">';
   S.plans.forEach(function (p) {
     if (p === ft) return;
     var q = prog(p);

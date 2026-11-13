@@ -764,8 +764,40 @@ input[type=checkbox]:checked::after { width: 5px; height: 9px; margin: 3px 0 0 7
   details, .day { margin: 9px 0; }
 }
 @media (max-width: 360px) {
+  body { min-width: 0; }
   .home-intro h1 { font-size: 32px; }
   .feat { gap: 10px; padding: 13px; }
   .fl { min-width: 68px; padding: 9px; }
   .nav .btn { font-size: 11px; }
+}
+@media (max-width: 600px) {
+  .grid.tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .grid.tiles .card { aspect-ratio: 1; min-height: 0; }
+  .grid.tiles .card .cover { min-height: 72px; flex: none; padding: 10px; }
+  .grid.tiles .card .cover .em { width: 34px; height: 34px; border-radius: 10px; font-size: 18px; }
+  .grid.tiles .card .cring .ring { width: 38px; height: 38px; }
+  .grid.tiles .card .cd { bottom: 7px; left: 10px; padding: 2px 8px; font-size: 10px; }
+  .grid.tiles .card-main { min-height: 0; flex: 1; padding: 8px 10px 2px; }
+  .grid.tiles .card-main h3 {
+    display: -webkit-box;
+    overflow: hidden;
+    font-size: 15px;
+    line-height: 1.2;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .grid.tiles .card-note, .grid.tiles .card-next { display: none; }
+  .grid.tiles .card-bottom { flex: none; padding: 5px 10px 9px; }
+  .grid.tiles .progress-label { gap: 3px; font-size: 11px; }
+  .grid.tiles .progress-label b { font-size: 12px; }
+  .grid.tiles .progress-track { height: 4px; margin-top: 5px; }
+}
+@media (max-width: 360px) {
+  .grid.tiles { gap: 8px; }
+  .grid.tiles .card .cover { min-height: 68px; }
+  .grid.tiles .card .cover .em { width: 32px; height: 32px; }
+  .grid.tiles .card .cring .ring { width: 34px; height: 34px; }
+  .grid.tiles .card-main { padding: 7px 9px 1px; }
+  .grid.tiles .card-main h3 { font-size: 14px; }
+  .grid.tiles .card-bottom { padding: 4px 9px 8px; }
 }
