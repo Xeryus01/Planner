@@ -825,3 +825,30 @@ input[type=checkbox]:checked::after { width: 5px; height: 9px; margin: 3px 0 0 7
 }
 .feat .drag-hint { top: 10px; right: 10px; left: auto; transform: none; }
 .home-plan.dragging .drag-hint { cursor: grabbing; }
+.reorder-help { margin: 8px 0 12px; color: var(--muted); font-size: 12px; }
+.reorder-handle {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--page);
+  color: var(--muted);
+  font-size: 17px;
+  line-height: 1;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.reorder-handle:active, [data-reorder-item].dragging .reorder-handle { cursor: grabbing; }
+.reorder-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-reorder-item].dragging { opacity: .48; }
+[data-reorder-item].drop-target { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.sortable-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; }
+.sortable-row > label { min-width: 0; min-height: 48px; flex: 1; padding: 8px 4px; }
+.sortable-row > .row { min-width: 0; flex: 1; padding: 0; }
+.sortable-row > .row input { min-width: 0; }
+.day > header > .row { min-width: 0; flex: 1; }
+.day > header > .row input { min-width: 0; }

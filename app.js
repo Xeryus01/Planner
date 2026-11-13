@@ -214,6 +214,12 @@ function P() { return S.plans.filter(function (p) { return p.id === cur; })[0]; 
 function Sx(p, id) { return p.sections.filter(function (s) { return s.id === id; })[0]; }
 function Yx(p, id) { return p.days.filter(function (s) { return s.id === id; })[0]; }
 function pillHtml() { return '<button class="pill ' + st + '" data-a="panel">' + LBL[st] + '</button>'; }
+function reorderAttrs(type, id, parent) {
+  return ' data-reorder-item data-reorder-type="' + type + '" data-reorder-id="' + esc(id) + '" data-reorder-parent="' + esc(parent || '') + '"';
+}
+function reorderHandle(label) {
+  return edit ? '<span class="reorder-handle" draggable="true" tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" aria-label="Seret untuk mengurutkan: ' + esc(label) + '">⠿</span>' : '';
+}
 function home() {
   var h = '<header class="home-head"><div class="home-top"><a class="wordmark" href="./" aria-label="Perencana"><span class="brand-mark">P</span><span>Perencana</span></a>' + pillHtml() + '</div><div class="home-intro"><h1>Rencana Anda<span>.</span></h1><p class="sub">Satu tempat untuk hal-hal yang ingin Anda tuntaskan.</p><div class="stats"><span><b>' + S.plans.length + '</b> rencana</span><span><b>' + remaining() + '</b> langkah tersisa</span></div></div></header>';
   var ft = featured(); if (ft) h += featHtml(ft, S.plans.length > 1);
@@ -229,13 +235,13 @@ function home() {
   return h + '</div></section><section class="new"><div class="new-copy"><h2>Buat rencana baru</h2><p>Pilih template atau mulai dengan halaman kosong.</p></div><div class="new-form"><input type="text" id="nt" placeholder="Contoh: Liburan akhir tahun" aria-label="Judul rencana"><select id="tp" aria-label="Template rencana"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana</button></div></section>';
 }
 function lists(p) {
-  var h = '';
+  var h = '<div class="reorder-list">';
   p.sections.forEach(function (s) {
     var c = s.items.filter(function (i) { return i.d; }).length;
-    h += '<details data-s="' + s.id + '"' + (s.o ? ' open' : '') + '><summary><span><b>' + esc(s.t) + '</b><small>' + esc(s.w) + '</small></span><span class="cnt' + (s.items.length && c === s.items.length ? ' ok' : '') + '" id="c' + s.id + '">' + c + '/' + s.items.length + '</span></summary><ul>';
+    h += '<details' + reorderAttrs('section', s.id) + ' data-s="' + s.id + '"' + (s.o ? ' open' : '') + '><summary><span><b>' + esc(s.t) + '</b><small>' + esc(s.w) + '</small></span>' + reorderHandle('bagian ' + s.t) + '<span class="cnt' + (s.items.length && c === s.items.length ? ' ok' : '') + '" id="c' + s.id + '">' + c + '/' + s.items.length + '</span></summary><ul>';
     s.items.forEach(function (i) {
       if (hideDone && !edit && i.d) return;
-      h += '<li>' + (edit
+      h += '<li' + reorderAttrs('item', i.id, s.id) + (edit ? ' class="sortable-row"' : '') + '>' + reorderHandle('item ' + i.x) + (edit
         ? '<div class="row"><input type="text" data-f="x" data-s="' + s.id + '" data-i="' + i.id + '" value="' + esc(i.x) + '"><button class="x" data-a="deli" data-s="' + s.id + '" data-i="' + i.id + '" aria-label="Hapus">×</button></div>'
         : '<label><input type="checkbox" data-f="chk" data-s="' + s.id + '" data-i="' + i.id + '"' + (i.d ? ' checked' : '') + '><span>' + esc(i.x) + (i.n ? '<small class="nt">' + esc(i.n) + '</small>' : '') + '</span></label>') + '</li>';
     });
@@ -244,17 +250,18 @@ function lists(p) {
     if (edit) h += '<div class="foot"><div class="row" style="padding:0"><input type="text" id="a' + s.id + '" placeholder="Tambah item"><button class="btn pri" data-a="addi" data-s="' + s.id + '">Tambah</button></div><div class="row" style="padding:0"><input type="text" data-f="st" data-s="' + s.id + '" value="' + esc(s.t) + '"><input type="text" data-f="sw" data-s="' + s.id + '" value="' + esc(s.w) + '" placeholder="Waktu" style="max-width:38%"></div><button class="btn dng" data-a="dels" data-s="' + s.id + '">Hapus bagian</button></div>';
     h += '</details>';
   });
+  h += '</div>';
   if (edit) h += '<div class="new"><div class="row" style="padding:0"><input type="text" id="ns" placeholder="Bagian baru"><button class="btn pri" data-a="adds">Tambah</button></div></div>';
   return h;
 }
 function days(p) {
-  var h = '';
+  var h = '<div class="reorder-list">';
   p.days.forEach(function (y) {
-    h += '<div class="day"><header>' + (edit
+    h += '<div class="day"' + reorderAttrs('day', y.id) + '><header>' + reorderHandle('hari ' + y.t) + (edit
       ? '<div class="row" style="padding:0"><input type="date" data-f="dd" data-y="' + y.id + '" value="' + esc(y.date) + '"><input type="text" data-f="dt" data-y="' + y.id + '" value="' + esc(y.t) + '"></div>'
       : dayHead(y)) + '</header><ul>';
     y.stops.forEach(function (i) {
-      h += '<li>' + (edit
+      h += '<li' + reorderAttrs('stop', i.id, y.id) + (edit ? ' class="sortable-row"' : '') + '>' + reorderHandle('kegiatan ' + i.x) + (edit
         ? '<div class="row"><input type="time" data-f="tm" data-y="' + y.id + '" data-i="' + i.id + '" value="' + esc(i.tm) + '" style="max-width:110px"><input type="text" data-f="sx" data-y="' + y.id + '" data-i="' + i.id + '" value="' + esc(i.x) + '"><button class="x" data-a="delt" data-y="' + y.id + '" data-i="' + i.id + '" aria-label="Hapus">×</button></div>'
         : '<label><input type="checkbox" data-f="schk" data-y="' + y.id + '" data-i="' + i.id + '"' + (i.d ? ' checked' : '') + '><span>' + (i.tm ? '<span class="tm">' + esc(i.tm) + '</span>' : '') + esc(i.x) + '</span></label>') + '</li>';
     });
@@ -262,6 +269,7 @@ function days(p) {
     if (edit) h += '<div class="foot"><div class="row" style="padding:0"><input type="text" id="t' + y.id + '" placeholder="Tambah kegiatan"><button class="btn pri" data-a="addt" data-y="' + y.id + '">Tambah</button></div><button class="btn dng" data-a="deld" data-y="' + y.id + '">Hapus hari</button></div>';
     h += '</div>';
   });
+  h += '</div>';
   if (!p.days.length) h += '<p style="color:var(--mu)">Belum ada jadwal.</p>';
   if (edit) h += '<button class="btn pri" data-a="addd" style="width:100%;margin-top:10px">Tambah hari</button>';
   return h;
@@ -273,6 +281,7 @@ function plan(p) {
   } else h += '<h1>' + esc(p.title) + '</h1><p>' + esc(p.note) + '</p>' + (cd(p) ? '<span class="chip">' + cd(p) + '</span>' : '');
   h += '</div><div id="hr">' + ring(r[2], 88) + '</div></div><div class="st" id="st" aria-live="polite">' + r[0] + ' dari ' + r[1] + ' selesai</div></section>';
   if (edit) h += styler(p);
+  if (edit) h += '<p class="reorder-help">Seret pegangan untuk mengurutkan bagian, hari, dan item. Dengan keyboard, fokuskan pegangan lalu tekan Alt + panah atas/bawah.</p>';
   if (tab === 'c' && !edit) h += '<div class="toolbar"><button class="chip-btn" data-a="hide" aria-pressed="' + hideDone + '">Sembunyikan yang selesai</button></div>';
   h += tab === 'c' ? lists(p) : days(p);
   if (edit) h += '<button class="btn dng" data-a="delplan" style="margin-top:18px;width:100%">' + 'Hapus rencana ini' + '</button>';
@@ -288,6 +297,31 @@ function upd() {
   p.sections.forEach(function (s) { var e = document.getElementById('c' + s.id), c = s.items.filter(function (i) { return i.d; }).length; if (e) { e.textContent = c + '/' + s.items.length; e.className = 'cnt' + (s.items.length && c === s.items.length ? ' ok' : ''); } });
 }
 function snack(m, f) { undo = f || null; $('#snt').textContent = m; $('#sn button').style.display = f ? '' : 'none'; $('#sn').style.display = 'flex'; clearTimeout(snT); snT = setTimeout(function () { $('#sn').style.display = 'none'; undo = null; }, 6000); }
+function reorderList(p, type, parent) {
+  if (type === 'section') return p.sections;
+  if (type === 'day') return p.days;
+  if (type === 'item') { var section = Sx(p, parent); return section && section.items; }
+  if (type === 'stop') { var day = Yx(p, parent); return day && day.stops; }
+  return null;
+}
+function reorderContent(type, parent, fromId, toId, after) {
+  var p = P(), list = p && reorderList(p, type, parent);
+  if (!list) return;
+  var from = list.findIndex(function (x) { return x.id === fromId; });
+  var target = list.filter(function (x) { return x.id === toId; })[0];
+  if (from < 0 || !target || fromId === toId) return;
+  var original = list.map(function (x) { return x.id; });
+  var focused = document.activeElement.closest && document.activeElement.closest('.reorder-handle');
+  var moved = list.splice(from, 1)[0], targetIndex = list.indexOf(target);
+  list.splice(targetIndex + (after ? 1 : 0), 0, moved);
+  if (list.every(function (x, i) { return x.id === original[i]; })) return;
+  touch(p); render();
+  if (focused) {
+    var handle = document.querySelector('[data-reorder-type="' + type + '"][data-reorder-id="' + fromId + '"] .reorder-handle');
+    if (handle) handle.focus();
+  }
+  snack('Urutan diperbarui');
+}
 function sheet() {
   var el = $('#sheet'); if (!panel) { el.innerHTML = ''; return; }
   var h = '<div class="sheet" data-a="close"><div class="box" role="dialog" aria-modal="true" aria-labelledby="sh-t"><h2 id="sh-t">Sinkronisasi</h2><p role="status">Status: <b id="sh-st">' + LBL[st] + (st === 'err' ? ': ' + esc(serr) : '') + '</b></p><p>Data bersama dibaca dari <code>data.json</code> di GitHub. Perubahan disimpan ke repo, lalu bisa dibaca semua perangkat.</p><p>Masukkan kata sandi yang sama dengan nilai <code>SYNC_PASSWORD</code> di pengaturan Vercel:</p><form id="sync-form" autocomplete="on"><div class="row"><input type="password" name="syncpw" autocomplete="current-password" placeholder="' + (syncPassword ? 'Kata sandi tersimpan di perangkat ini' : 'Kata sandi sinkronisasi') + '"><button class="btn pri" type="submit">Simpan &amp; sinkron</button></div></form><p>Kata sandi hanya disimpan di perangkat ini, bukan di <code>config.js</code>.</p><div class="tools"><button class="btn" data-a="sync">Sinkron sekarang</button></div>';
@@ -408,6 +442,119 @@ document.addEventListener('keydown', function (e) {
   var index = cards.indexOf(card), direction = e.key === 'ArrowUp' ? -1 : 1, target = cards[index + direction];
   e.preventDefault();
   if (target) reorderPlan(card.dataset.p, target.dataset.p, direction > 0);
+});
+
+var contentDrag = null, touchContentDrag = null, suppressContentClick = false;
+function clearContentDropTargets() {
+  document.querySelectorAll('[data-reorder-item].drop-target').forEach(function (item) { item.classList.remove('drop-target'); });
+}
+function sameContentList(a, b) {
+  return a && b && a.type === b.dataset.reorderType && a.parent === b.dataset.reorderParent;
+}
+function contentDropRect(item) {
+  var header = item.dataset.reorderType === 'section' ? item.querySelector('summary') : (item.dataset.reorderType === 'day' ? item.querySelector('header') : null);
+  return (header || item).getBoundingClientRect();
+}
+function contentDragTarget(e) {
+  var handle = e.target.closest && e.target.closest('.reorder-handle[draggable="true"]');
+  return handle && handle.closest('[data-reorder-item]');
+}
+document.addEventListener('click', function (e) {
+  if (!suppressContentClick) return;
+  var item = e.target.closest && e.target.closest('[data-reorder-item]');
+  if (item) { e.preventDefault(); e.stopImmediatePropagation(); }
+}, true);
+document.addEventListener('dragstart', function (e) {
+  var item = contentDragTarget(e);
+  if (!item) return;
+  contentDrag = { type: item.dataset.reorderType, parent: item.dataset.reorderParent, id: item.dataset.reorderId };
+  item.classList.add('dragging');
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', contentDrag.id); }
+});
+document.addEventListener('dragover', function (e) {
+  if (!contentDrag) return;
+  var target = e.target.closest && e.target.closest('[data-reorder-item]');
+  clearContentDropTargets();
+  if (!sameContentList(contentDrag, target) || target.dataset.reorderId === contentDrag.id) return;
+  e.preventDefault();
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  target.classList.add('drop-target');
+  var rect = contentDropRect(target);
+  contentDrag.targetId = target.dataset.reorderId;
+  contentDrag.after = e.clientY > rect.top + rect.height / 2;
+});
+document.addEventListener('drop', function (e) {
+  if (!contentDrag) return;
+  var target = e.target.closest && e.target.closest('[data-reorder-item]');
+  if (!sameContentList(contentDrag, target) || target.dataset.reorderId === contentDrag.id) return;
+  e.preventDefault();
+  var drag = contentDrag, rect = contentDropRect(target);
+  drag.after = e.clientY > rect.top + rect.height / 2;
+  contentDrag = null;
+  clearContentDropTargets();
+  suppressContentClick = true;
+  setTimeout(function () { suppressContentClick = false; }, 0);
+  reorderContent(drag.type, drag.parent, drag.id, target.dataset.reorderId, drag.after);
+});
+document.addEventListener('dragend', function () {
+  contentDrag = null;
+  clearContentDropTargets();
+  document.querySelectorAll('[data-reorder-item].dragging').forEach(function (item) { item.classList.remove('dragging'); });
+  suppressContentClick = true;
+  setTimeout(function () { suppressContentClick = false; }, 0);
+});
+document.addEventListener('pointerdown', function (e) {
+  if (e.pointerType === 'mouse' || e.button !== 0) return;
+  var handle = e.target.closest && e.target.closest('.reorder-handle[draggable="true"]');
+  var item = handle && handle.closest('[data-reorder-item]');
+  if (!item) return;
+  e.preventDefault();
+  touchContentDrag = { type: item.dataset.reorderType, parent: item.dataset.reorderParent, id: item.dataset.reorderId, item: item, pointerId: e.pointerId, x: e.clientX, y: e.clientY, dragging: false, targetId: null, after: false };
+  if (item.setPointerCapture) item.setPointerCapture(e.pointerId);
+});
+document.addEventListener('pointermove', function (e) {
+  var drag = touchContentDrag;
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  if (!drag.dragging && Math.max(Math.abs(e.clientX - drag.x), Math.abs(e.clientY - drag.y)) < 8) return;
+  drag.dragging = true;
+  e.preventDefault();
+  drag.item.classList.add('dragging');
+  var target = document.elementFromPoint(e.clientX, e.clientY);
+  target = target && target.closest('[data-reorder-item]');
+  clearContentDropTargets();
+  if (!sameContentList(drag, target) || target.dataset.reorderId === drag.id) { drag.targetId = null; return; }
+  target.classList.add('drop-target');
+  var rect = contentDropRect(target);
+  drag.targetId = target.dataset.reorderId;
+  drag.after = e.clientY > rect.top + rect.height / 2;
+});
+document.addEventListener('pointerup', function (e) {
+  var drag = touchContentDrag;
+  if (!drag || e.pointerId !== drag.pointerId) return;
+  touchContentDrag = null;
+  clearContentDropTargets();
+  drag.item.classList.remove('dragging');
+  if (!drag.dragging) return;
+  suppressContentClick = true;
+  setTimeout(function () { suppressContentClick = false; }, 0);
+  if (drag.targetId) reorderContent(drag.type, drag.parent, drag.id, drag.targetId, drag.after);
+});
+document.addEventListener('pointercancel', function () {
+  if (!touchContentDrag) return;
+  touchContentDrag.item.classList.remove('dragging');
+  touchContentDrag = null;
+  clearContentDropTargets();
+});
+document.addEventListener('keydown', function (e) {
+  if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  var handle = e.target.closest && e.target.closest('.reorder-handle[draggable="true"]');
+  var item = handle && handle.closest('[data-reorder-item]');
+  if (!item) return;
+  var type = item.dataset.reorderType, parent = item.dataset.reorderParent;
+  var list = reorderList(P(), type, parent), index = list ? list.findIndex(function (x) { return x.id === item.dataset.reorderId; }) : -1;
+  var direction = e.key === 'ArrowUp' ? -1 : 1, target = list && list[index + direction];
+  e.preventDefault();
+  if (target) reorderContent(type, parent, item.dataset.reorderId, target.id, direction > 0);
 });
 
 /* ---------- aksi ---------- */
