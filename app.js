@@ -3,7 +3,10 @@
 var C = Object.assign({ SECRET: '' }, window.CONFIG || {});
 var KEY = 'perencana:v2', PW = 'perencana:sync-password', API = '/api/data';
 var $ = function (s) { return document.querySelector(s); }, app = $('#app');
-var COL = { teal: '#48745d', indigo: '#6d7192', amber: '#a8763e', rose: '#a85e5d', green: '#61805d' };
+var COL = { teal: '#0e7490', blue: '#2563eb', indigo: '#4f46e5', violet: '#7c3aed', fuchsia: '#c026d3', rose: '#e11d48', orange: '#ea580c', amber: '#d99a06', lime: '#65a30d', green: '#16a34a', emerald: '#059669', slate: '#475569' };
+var NAMES = { teal: 'Laut', blue: 'Biru', indigo: 'Indigo', violet: 'Ungu', fuchsia: 'Magenta', rose: 'Mawar', orange: 'Jingga', amber: 'Kuning', lime: 'Limau', green: 'Hijau', emerald: 'Zamrud', slate: 'Abu' };
+var EMOJIS = ['🧳', '✈️', '🏖️', '🎉', '🎂', '💍', '🏠', '📦', '🎓', '💼', '🛒', '🍽️', '🏃', '📚', '🎁', '🌴', '⛰️', '🚗', '🏥', '⭐'];
+var STYLES = [['gradient', 'Gradasi'], ['solid', 'Polos'], ['aurora', 'Aurora'], ['stripe', 'Garis']];
 var TPL = {
   kosong: [],
   liburan: [['Dokumen', 'Paspor, tiket, asuransi', 'Penginapan dan transportasi dipesan'], ['Bawaan', 'Baju, obat, charger', 'Uang dan kartu'], ['Hari H', 'Cek dokumen dan kunci rumah']],
@@ -120,6 +123,48 @@ var IC = {
   e: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>',
   ok: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>'
 };
+function col(p) { return COL[p.color] || (/^#[0-9a-f]{6}$/i.test(p.color || '') ? p.color : COL.teal); }
+function rgb(h) { var n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; }
+function hex(a) { return '#' + a.map(function (v) { return ('0' + Math.round(Math.max(0, Math.min(255, v))).toString(16)).slice(-2); }).join(''); }
+function mix(h, t, w) { var a = rgb(h), b = rgb(t); return hex(a.map(function (v, i) { return v + (b[i] - v) * w; })); }
+function lum(h) { var a = rgb(h).map(function (v) { v /= 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * a[0] + .7152 * a[1] + .0722 * a[2]; }
+function cover(p) {
+  var c = col(p), light = lum(c) > .26;
+  return '--c:' + c + ';--c1:' + mix(c, '#ffffff', light ? .4 : .1) + ';--c2:' + mix(c, '#000000', light ? .12 : .5) + ';--on:' + (light ? '#17180f' : '#ffffff');
+}
+function applyTheme(p) {
+  var b = document.body.style, ks = ['--tint', '--accent', '--accent-strong', '--on-accent'];
+  if (!p) { ks.forEach(function (k) { b.removeProperty(k); }); return; }
+  var c = col(p), dark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var a = dark ? mix(c, '#ffffff', .3) : c, st2 = dark ? mix(c, '#ffffff', .15) : mix(c, '#000000', .2);
+  b.setProperty('--tint', c); b.setProperty('--accent', a); b.setProperty('--accent-strong', st2); b.setProperty('--on-accent', lum(st2) > .35 ? '#10130d' : '#ffffff');
+}
+function remaining() { var n = 0; S.plans.forEach(function (p) { var q = prog(p); n += q[1] - q[0]; }); return n; }
+function featured() {
+  var t = new Date(); t.setHours(0, 0, 0, 0); var best = null;
+  S.plans.forEach(function (p) { if (!p.start) return; if (new Date(p.end || p.start) < t) return; if (!best || p.start < best.start) best = p; });
+  return best;
+}
+function cardHtml(p, q) {
+  return '<button class="card" data-a="open" data-p="' + p.id + '" data-style="' + esc(p.style || 'gradient') + '" style="' + cover(p) + '"><div class="cover"><span class="em">' + esc(p.emoji) + '</span><span class="cd">' + esc(cd(p) || 'Tanpa tanggal') + '</span><div class="cring">' + ring(q[2], 56) + '</div></div><div class="card-main"><h3>' + esc(p.title) + '</h3>' + (p.note ? '<p class="card-note">' + esc(p.note) + '</p>' : '') + (nextItem(p) ? '<p class="card-next"><span>Berikutnya</span>' + esc(nextItem(p)) + '</p>' : (q[1] ? '<p class="card-next done"><span>Semua langkah selesai</span></p>' : '')) + '</div><div class="card-bottom"><span class="progress-label"><b>' + q[0] + '</b><span> dari ' + q[1] + ' selesai</span></span><span class="progress-track"><i style="width:' + q[2] + '%"></i></span></div></button>';
+}
+function featHtml(p) {
+  var q = prog(p), t = new Date(); t.setHours(0, 0, 0, 0);
+  var n = Math.round((new Date(p.start) - t) / 864e5), big, unit;
+  if (n > 0) { big = n; unit = 'hari lagi'; } else if (n === 0) { big = 'Hari'; unit = 'ini'; } else { big = n * -1 + 1; unit = 'hari berjalan'; }
+  return '<button class="feat" data-a="open" data-p="' + p.id + '" data-style="' + esc(p.style || 'gradient') + '" style="' + cover(p) + '"><div class="fl"><span class="fnum">' + big + '</span><span class="funit">' + unit + '</span></div><div class="fr"><span class="em">' + esc(p.emoji) + '</span><h2>' + esc(p.title) + '</h2>' + (p.note ? '<p>' + esc(p.note) + '</p>' : '') + '<p class="fprog">' + q[0] + ' dari ' + q[1] + ' selesai</p></div><div class="cring">' + ring(q[2], 64) + '</div></button>';
+}
+function styler(p) {
+  var c = col(p), isKey = Object.keys(COL).some(function (k) { return COL[k] === c; });
+  var h = '<section class="styler" aria-label="Tampilan rencana"><h2>Tampilan</h2><div class="srow"><span class="slabel" id="sl-col">Warna</span><div class="swatches" role="group" aria-labelledby="sl-col">';
+  Object.keys(NAMES).forEach(function (k) { h += '<button class="sw' + (COL[k] === c ? ' on' : '') + '" data-a="color" data-v="' + k + '" style="--sw:' + COL[k] + '" aria-label="' + NAMES[k] + '" aria-pressed="' + (COL[k] === c) + '"></button>'; });
+  h += '<label class="sw custom' + (isKey ? '' : ' on') + '"><input type="color" data-f="color" value="' + c + '" aria-label="Warna sendiri"><span>Pilih</span></label></div></div>';
+  h += '<div class="srow"><span class="slabel" id="sl-sty">Gaya sampul</span><div class="chips" role="group" aria-labelledby="sl-sty">';
+  STYLES.forEach(function (x) { h += '<button class="chip-btn" data-a="style" data-v="' + x[0] + '" aria-pressed="' + ((p.style || 'gradient') === x[0]) + '">' + x[1] + '</button>'; });
+  h += '</div></div><div class="srow"><span class="slabel" id="sl-ico">Ikon</span><div class="emojis" role="group" aria-labelledby="sl-ico">';
+  EMOJIS.forEach(function (e) { h += '<button class="eb' + (p.emoji === e ? ' on' : '') + '" data-a="emoji" data-v="' + e + '" aria-label="Ikon ' + e + '" aria-pressed="' + (p.emoji === e) + '">' + e + '</button>'; });
+  return h + '<input type="text" class="eb-in" data-f="emoji" value="' + esc(p.emoji) + '" maxlength="4" aria-label="Ikon sendiri"></div></div></section>';
+}
 function nextItem(p) {
   for (var i = 0; i < p.sections.length; i++) for (var j = 0; j < p.sections[i].items.length; j++) if (!p.sections[i].items[j].d) return p.sections[i].items[j].x;
   return '';
@@ -134,13 +179,15 @@ function Sx(p, id) { return p.sections.filter(function (s) { return s.id === id;
 function Yx(p, id) { return p.days.filter(function (s) { return s.id === id; })[0]; }
 function pillHtml() { return '<button class="pill ' + st + '" data-a="panel">' + LBL[st] + '</button>'; }
 function home() {
-  var h = '<header class="home-head"><div class="home-top"><a class="wordmark" href="./" aria-label="Perencana"><span class="brand-mark">P</span><span>Perencana</span></a>' + pillHtml() + '</div><div class="home-intro"><h1>Rencana Anda<span>.</span></h1><p class="sub">Satu tempat untuk hal-hal yang ingin Anda tuntaskan.</p></div></header>';
-  h += '<section class="plans" aria-label="Daftar rencana"><div class="section-title"><h2>Daftar rencana</h2><span class="plan-count">' + S.plans.length + '</span></div>';
+  var h = '<header class="home-head"><div class="home-top"><a class="wordmark" href="./" aria-label="Perencana"><span class="brand-mark">P</span><span>Perencana</span></a>' + pillHtml() + '</div><div class="home-intro"><h1>Rencana Anda<span>.</span></h1><p class="sub">Satu tempat untuk hal-hal yang ingin Anda tuntaskan.</p><div class="stats"><span><b>' + S.plans.length + '</b> rencana</span><span><b>' + remaining() + '</b> langkah tersisa</span></div></div></header>';
+  var ft = featured(); if (ft) h += featHtml(ft);
+  h += '<section class="plans"' + (ft && S.plans.length < 2 ? ' hidden' : '') + ' aria-label="Daftar rencana"><div class="section-title"><h2>' + (ft ? 'Rencana lainnya' : 'Daftar rencana') + '</h2><span class="plan-count">' + (S.plans.length - (ft ? 1 : 0)) + '</span></div>';
   if (booting && !S.plans.length) h += '<p class="loading" role="status">Memuat rencana…</p>'; else if (!S.plans.length) h += '<div class="empty"><span class="empty-mark">—</span><p>Belum ada rencana.</p><small>Buat satu di bawah untuk mulai menyusun langkah.</small></div>';
   h += '<div class="grid">';
   S.plans.forEach(function (p) {
-    var q = prog(p), date = cd(p);
-    h += '<button class="card" data-a="open" data-p="' + p.id + '" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="card-top"><span class="em">' + esc(p.emoji) + '</span></div><div class="card-main"><h3>' + esc(p.title) + '</h3><p class="card-note">' + esc(p.note || '') + '</p>' + (nextItem(p) ? '<p class="card-next"><span>Berikutnya</span>' + esc(nextItem(p)) + '</p>' : (q[1] ? '<p class="card-next done"><span>Semua langkah selesai</span></p>' : '')) + '</div><div class="card-bottom"><div class="card-progress"><span class="card-date">' + esc(date || 'Tanpa tanggal') + '</span><span class="progress-label"><b>' + q[0] + '</b><span> / ' + q[1] + ' selesai</span></span><span class="progress-track"><i style="width:' + q[2] + '%"></i></span></div>' + ring(q[2], 52) + '</div></button>';
+    if (p === ft) return;
+    var q = prog(p);
+    h += cardHtml(p, q);
   });
   return h + '</div></section><section class="new"><div class="new-copy"><h2>Buat rencana baru</h2><p>Pilih template atau mulai dengan halaman kosong.</p></div><div class="new-form"><input type="text" id="nt" placeholder="Contoh: Liburan akhir tahun" aria-label="Judul rencana"><select id="tp" aria-label="Template rencana"><option value="kosong">Kosong</option><option value="liburan">Liburan</option><option value="acara">Acara</option><option value="pindahan">Pindahan</option></select><button class="btn pri" data-a="newplan">Buat rencana</button></div></section>';
 }
@@ -183,13 +230,12 @@ function days(p) {
   return h;
 }
 function plan(p) {
-  var r = prog(p), h = '<section class="hero" style="--c:' + (COL[p.color] || COL.teal) + '"><div class="hr"><button class="ghost" data-a="home">‹ Semua rencana</button>' + pillHtml() + '</div><div class="hm"><div><div class="em">' + esc(p.emoji) + '</div>';
+  var r = prog(p), h = '<section class="hero" data-style="' + esc(p.style || 'gradient') + '" style="' + cover(p) + '"><div class="hr"><button class="ghost" data-a="home">‹ Semua rencana</button>' + pillHtml() + '</div><div class="hm"><div><div class="em">' + esc(p.emoji) + '</div>';
   if (edit) {
-    h += '<input type="text" data-f="title" value="' + esc(p.title) + '"><input type="text" data-f="note" value="' + esc(p.note) + '" placeholder="Keterangan"><div class="row" style="padding:0"><input type="date" data-f="start" value="' + esc(p.start) + '"><input type="date" data-f="end" value="' + esc(p.end) + '"></div><div class="row" style="padding:4px 0;flex-wrap:wrap"><input type="text" data-f="emoji" value="' + esc(p.emoji) + '" style="max-width:70px;width:70px">';
-    Object.keys(COL).forEach(function (k) { h += '<span class="dot" data-a="color" data-v="' + k + '" style="background:' + COL[k] + '"></span>'; });
-    h += '</div>';
+    h += '<input type="text" data-f="title" value="' + esc(p.title) + '"><input type="text" data-f="note" value="' + esc(p.note) + '" placeholder="Keterangan"><div class="row" style="padding:0"><input type="date" data-f="start" value="' + esc(p.start) + '"><input type="date" data-f="end" value="' + esc(p.end) + '"></div>';
   } else h += '<h1>' + esc(p.title) + '</h1><p>' + esc(p.note) + '</p>' + (cd(p) ? '<span class="chip">' + cd(p) + '</span>' : '');
   h += '</div><div id="hr">' + ring(r[2], 88) + '</div></div><div class="st" id="st" aria-live="polite">' + r[0] + ' dari ' + r[1] + ' selesai</div></section>';
+  if (edit) h += styler(p);
   if (tab === 'c' && !edit) h += '<div class="toolbar"><button class="chip-btn" data-a="hide" aria-pressed="' + hideDone + '">Sembunyikan yang selesai</button></div>';
   h += tab === 'c' ? lists(p) : days(p);
   if (edit) h += '<button class="btn dng" data-a="delplan" style="margin-top:18px;width:100%">' + 'Hapus rencana ini' + '</button>';
@@ -199,7 +245,7 @@ function plan(p) {
     '<button class="tabbtn edit' + (edit ? ' editing' : '') + '" aria-pressed="' + edit + '" data-a="edit">' + (edit ? IC.ok : IC.e) + '<span>' + (edit ? 'Selesai' : 'Ubah') + '</span></button></div></nav>';
   return h;
 }
-function render() { var p = cur && P(); if (cur && !p) cur = null; app.innerHTML = p ? plan(p) : home(); }
+function render() { var p = cur && P(); if (cur && !p) cur = null; applyTheme(p); app.innerHTML = p ? plan(p) : home(); }
 function upd() {
   var p = P(), r = prog(p); $('#hr').innerHTML = ring(r[2], 88); $('#st').textContent = r[0] + ' dari ' + r[1] + ' selesai';
   p.sections.forEach(function (s) { var e = document.getElementById('c' + s.id), c = s.items.filter(function (i) { return i.d; }).length; if (e) { e.textContent = c + '/' + s.items.length; e.className = 'cnt' + (s.items.length && c === s.items.length ? ' ok' : ''); } });
@@ -268,6 +314,8 @@ document.addEventListener('click', function (e) {
   else if (a === 'hide') hideDone = !hideDone;
   else if (a === 'edit') edit = !edit;
   else if (a === 'color') { p.color = d.v; touch(p); }
+  else if (a === 'style') { p.style = d.v; touch(p); }
+  else if (a === 'emoji') { p.emoji = d.v; touch(p); }
   else if (a === 'addi') { var i = document.getElementById('a' + d.s), v = i.value.trim(); if (!v) return; Sx(p, d.s).items.push(item(v, 0)); touch(p); render(); document.getElementById('a' + d.s).focus(); return; }
   else if (a === 'deli') return rm(Sx(p, d.s).items, d.i, 'Item dihapus', p);
   else if (a === 'adds') { var v2 = $('#ns').value.trim(); if (!v2) return; p.sections.push({ id: uid(), t: v2, w: '', o: true, items: [] }); touch(p); }
@@ -311,6 +359,7 @@ document.addEventListener('change', function (e) {
   else p[f2] = v;
   touch(p);
   if (f2 === 'chk' || f2 === 'schk') upd();
+  if (f2 === 'color' || f2 === 'emoji') render();
 });
 document.addEventListener('toggle', function (e) {
   var d = e.target, p = cur && P();
