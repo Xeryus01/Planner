@@ -659,3 +659,113 @@ body { background: radial-gradient(820px 460px at 88% -8%, color-mix(in srgb, va
 .eb-in { width: 84px; flex: none; text-align: center; }
 @media (max-width: 520px) { .feat { grid-template-columns: auto 1fr; gap: 14px; padding: 18px; } .feat .cring { display: none; } .fl { min-width: 84px; padding: 12px; } }
 @media (prefers-reduced-motion: reduce) { .feat, .sw, .eb { transition: none !important; } }
+
+/* ---------- skala visual yang lebih ringkas ---------- */
+:root {
+  --lift: 0 1px 0 rgba(255,255,255,.72) inset, 0 1px 2px rgba(24,40,32,.04), 0 8px 20px -12px rgba(24,40,32,.2);
+}
+body { font-size: 15px; }
+.home-head { margin-bottom: 32px; }
+.home-intro { padding-top: 42px; }
+.home-intro h1 { font-size: clamp(34px, 4.8vw, 44px); line-height: 1.04; }
+.sub { margin-top: 10px; font-size: 15px; }
+.stats { margin-top: 13px; }
+.stats span { padding: 5px 11px; font-size: 12px; }
+.stats b { font-size: 14px; }
+.section-title h2, .new h2 { font-size: 24px; }
+.section-title { margin-bottom: 13px; }
+.grid { gap: 12px; }
+.card { border-radius: 17px; }
+.card:hover { transform: translateY(-2px); box-shadow: var(--lift), 0 0 0 1px color-mix(in srgb, var(--c) 32%, var(--line)); }
+.card .cover { min-height: 104px; padding: 14px; }
+.card .cover .em { width: 42px; height: 42px; overflow: hidden; border-radius: 13px; font-size: 21px; white-space: nowrap; }
+.card .cd { bottom: 10px; left: 14px; font-size: 11px; }
+.card-main { padding: 13px 16px 5px; }
+.card-main h3 { font-size: 21px; }
+.card-note, .card-next { font-size: 13px; }
+.card-bottom { padding: 9px 16px 15px; }
+.progress-track { height: 6px; }
+.feat { gap: 16px; margin: 18px 0 16px; padding: 19px; border-radius: 21px; box-shadow: var(--lift), 0 0 0 1px color-mix(in srgb, var(--c) 32%, transparent); }
+.feat:hover { transform: translateY(-2px); }
+.fl { min-width: 84px; padding: 11px 13px; border-radius: 16px; }
+.fnum { font-size: clamp(34px, 9vw, 48px); }
+.funit { font-size: 12px; }
+.fr .em { width: 36px; height: 36px; overflow: hidden; border-radius: 11px; font-size: 20px; white-space: nowrap; }
+.fr h2 { margin-top: 7px; font-size: clamp(20px, 3.5vw, 24px); }
+.fr p { font-size: 13px; }
+.fr .fprog { margin-top: 7px; }
+.new { gap: 22px; padding: 21px; border-radius: 16px; }
+.new-copy h2 { font-size: 23px; }
+.new-copy p:last-child { font-size: 13px; }
+.btn { min-height: 42px; padding-right: 13px; padding-left: 13px; font-size: 13px; }
+.btn.pri { box-shadow: 0 1px 0 rgba(255,255,255,.22) inset, 0 2px 0 color-mix(in srgb, var(--accent-strong) 55%, #000); }
+.btn.pri:active { box-shadow: 0 1px 0 color-mix(in srgb, var(--accent-strong) 55%, #000); }
+.hero { padding: 18px 20px 16px; border-radius: 20px; box-shadow: 0 1px 0 rgba(255,255,255,.28) inset, 0 12px 24px -16px color-mix(in srgb, var(--c) 70%, #000); }
+.hm { margin-top: 17px; }
+.hero .em { width: 44px; height: 44px; margin-bottom: 8px; border-radius: 13px; font-size: 23px; }
+.hero h1 { font-size: clamp(27px, 4vw, 35px); }
+.hero p { font-size: 13px; }
+.hero .ring { width: 60px; height: 60px; }
+details, .day { border-radius: 15px; box-shadow: 0 1px 2px rgba(24,40,32,.04), 0 7px 18px -14px rgba(24,40,32,.22); }
+summary { min-height: 58px; padding: 11px 14px; }
+summary b, .day h2 { font-size: 14px; }
+summary small, .dd { font-size: 11px; }
+details label, .day label { min-height: 48px; gap: 10px; padding: 12px 14px; font-size: 14px; line-height: 1.45; }
+input[type=checkbox] { width: 22px; height: 22px; border-radius: 6px; box-shadow: 0 0 0 1.5px #aeb8ac inset, 0 1px 0 var(--line); }
+input[type=checkbox]:active { box-shadow: 0 0 0 1.5px #aeb8ac inset; }
+input[type=checkbox]:checked { box-shadow: 0 1px 0 rgba(255,255,255,.22) inset, 0 1px 0 color-mix(in srgb, var(--accent-strong) 55%, #000); }
+input[type=checkbox]:checked::after { width: 5px; height: 9px; margin: 3px 0 0 7px; }
+.dnum { width: 48px; padding: 7px 0 6px; border-radius: 10px; box-shadow: 0 1px 0 var(--line); }
+.dnum b { font-size: 23px; }
+.dnum span { font-size: 11px; }
+.swatches, .chips, .emojis { gap: 8px; }
+.sw { width: 40px; height: 40px; border-radius: 12px; }
+.eb { width: 40px; height: 40px; border-radius: 11px; font-size: 20px; box-shadow: 0 1px 0 var(--line); }
+.chip-btn { min-height: 40px; padding: 0 13px; font-size: 12px; }
+.nav > div { gap: 6px; padding: 6px; border-radius: 21px; box-shadow: 0 1px 0 rgba(255,255,255,.7) inset, 0 0 0 1px var(--line), 0 12px 28px -16px rgba(16,30,22,.36); }
+.tabbtn { height: 56px; gap: 4px; border-radius: 15px; font-size: 11px; }
+.tabbtn svg { width: 21px; height: 21px; }
+.tabbtn.on, .tabbtn.edit { transform: translateY(-2px); box-shadow: 0 1px 0 rgba(255,255,255,.25) inset, 0 2px 0 color-mix(in srgb, var(--accent-strong) 55%, #000); }
+.tabbtn.edit { box-shadow: 0 1px 0 rgba(255,255,255,.4) inset, 0 2px 0 color-mix(in srgb, var(--signal) 56%, #3a2400); }
+.tabbtn.edit.editing { box-shadow: 0 1px 0 rgba(255,255,255,.15) inset, 0 2px 0 #000; }
+.ring { filter: drop-shadow(0 1px 2px rgba(0,0,0,.12)); }
+.styler { padding: 16px; border-radius: 17px; }
+.styler h2 { font-size: 18px; }
+.srow { gap: 8px; margin-top: 13px; }
+.slabel { font-size: 12px; }
+.box h2 { font-size: 24px; }
+.box { gap: 10px; }
+.box p, .m { font-size: 13px; }
+.code { font-size: 12px; }
+
+@media (max-width: 600px) {
+  main { padding-top: 16px; }
+  .home-head { margin-bottom: 25px; }
+  .home-intro { padding-top: 34px; }
+  .home-intro h1 { font-size: clamp(32px, 9vw, 38px); }
+  .sub { font-size: 14px; }
+  .card { min-height: 0; padding: 0; }
+  .card .cover { min-height: 96px; padding: 13px; }
+  .card .cover .em { width: 40px; height: 40px; font-size: 20px; }
+  .card-main { margin: 0; padding: 12px 14px 4px; }
+  .card-main h3 { font-size: 20px; }
+  .card-bottom { padding: 8px 14px 13px; }
+  .new { gap: 14px; padding: 17px; }
+  .new-copy h2 { font-size: 22px; }
+  .hero { padding: 15px 15px 13px; }
+  .hm { gap: 9px; margin-top: 14px; }
+  .hero .em { width: 40px; height: 40px; font-size: 21px; }
+  .hero h1 { font-size: clamp(26px, 7.5vw, 32px); }
+  .hero .ring { width: 56px; height: 56px; }
+  .feat { grid-template-columns: auto 1fr; gap: 12px; padding: 15px; }
+  .fl { min-width: 74px; padding: 10px 11px; }
+  .fnum { font-size: clamp(32px, 9vw, 42px); }
+  .fr h2 { font-size: 20px; }
+  details, .day { margin: 9px 0; }
+}
+@media (max-width: 360px) {
+  .home-intro h1 { font-size: 32px; }
+  .feat { gap: 10px; padding: 13px; }
+  .fl { min-width: 68px; padding: 9px; }
+  .nav .btn { font-size: 11px; }
+}

@@ -20,13 +20,21 @@ var hideDone = false, lastFocus = null, gotoTop = false, booting = true;
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+function oneEmoji(s) {
+  s = String(s || '📌').trim();
+  if (window.Intl && Intl.Segmenter) {
+    var first = new Intl.Segmenter('id', { granularity: 'grapheme' }).segment(s)[Symbol.iterator]().next();
+    return first.done ? '📌' : first.value.segment;
+  }
+  return Array.from(s)[0] || '📌';
+}
 function clone(x) { return JSON.parse(JSON.stringify(x)); }
 function item(i, stop) {
   if (typeof i === 'string') { var q = i.split('|'); i = stop ? (q.length > 1 ? { tm: q[0], x: q[1] } : { tm: '', x: q[0] }) : { x: q[0], n: q[1] || '' }; }
   i.id = i.id || uid(); i.d = i.d ? 1 : 0; return i;
 }
 function norm(p) {
-  p.id = p.id || uid(); p.color = p.color || 'teal'; p.emoji = p.emoji || '📌'; p.title = p.title || 'Rencana'; p.note = p.note || '';
+  p.id = p.id || uid(); p.color = p.color || 'teal'; p.emoji = oneEmoji(p.emoji); p.title = p.title || 'Rencana'; p.note = p.note || '';
   p.sections = (p.sections || []).map(function (s) { s.id = s.id || uid(); s.items = (s.items || []).map(function (i) { return item(i, 0); }); return s; });
   p.days = (p.days || []).map(function (y) { y.id = y.id || uid(); y.stops = (y.stops || []).map(function (i) { return item(i, 1); }); return y; });
   return p;
